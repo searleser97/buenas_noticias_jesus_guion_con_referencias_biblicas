@@ -1,0 +1,21 @@
+{
+  "name": "assembly_movies_script_extractor",
+  "version": "1.0.0",
+  "description": "Extrae los textos biblicos de las peliculas de la Asamblea Regional 2026 (jw.org) y genera un PDF por pelicula.",
+  "main": "extract.js",
+  "scripts": {
+    "extract": "node extract.js",
+    "pdf": "node make_pdfs.js",
+    "start": "node extract.js && node make_pdfs.js",
+    "verify:source": "node verify_source.js",
+    "verify:pdf": "python verify_pdf.py"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "pdfkit": "^0.19.1",
+    "playwright": "^1.61.1"
+  }
+}
