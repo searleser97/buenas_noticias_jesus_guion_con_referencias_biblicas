@@ -217,6 +217,68 @@ def _abbrev_from_label(label):
     return m.group(1).strip() if m else (label or "").strip()
 
 
+def _tok_norm(w):
+    """Núcleo de la palabra en minúsculas, sin puntuación (para comparar)."""
+    m = WORD_RE.search(w or "")
+    return m.group(0).lower() if m else ""
+
+
+def _mark_transpositions(tokens):
+    """Detecta cláusulas REUBICADAS (transposiciones) por la película.
+
+    La película a veces dice una frase bíblica en distinto orden del que tiene
+    en el versículo (p. ej. mueve "nadie puede comer de ese pan excepto los
+    sacerdotes" antes de "compartió con sus hombres" en Marcos 2:26). Como la
+    base respeta el orden bíblico, esa frase aparecería a la vez como añadida
+    (verde, en su posición del guion) y como omitida (rojo, en su posición
+    bíblica), aunque sí es texto bíblico solo que reordenado.
+
+    Aquí se detecta ese caso: si un tramo marcado como añadido (add) coincide
+    de forma sustancial con un tramo omitido (del) de la misma escena, el tramo
+    añadido se re-etiqueta como 'moved' (texto bíblico reubicado) y el tramo
+    omitido que lo origina se elimina, para no duplicar la información.
+    """
+    def runs(kind):
+        res, i, n = [], 0, len(tokens)
+        while i < n:
+            if tokens[i].get("t") == kind:
+                j = i
+                while j < n and tokens[j].get("t") == kind:
+                    j += 1
+                res.append((i, j))
+                i = j
+            else:
+                i += 1
+        return res
+
+    add_runs = runs("add")
+    del_runs = runs("del")
+    used_del = set()
+    for (ai, aj) in add_runs:
+        a_words = [w for w in (_tok_norm(tokens[k]["w"]) for k in range(ai, aj)) if w]
+        if len(a_words) < 3:
+            continue
+        best, best_ratio = None, 0.0
+        for ri, (di, dj) in enumerate(del_runs):
+            if ri in used_del:
+                continue
+            d_words = [w for w in (_tok_norm(tokens[k]["w"]) for k in range(di, dj)) if w]
+            if len(d_words) < 3:
+                continue
+            r = SequenceMatcher(a=d_words, b=a_words, autojunk=False).ratio()
+            if r > best_ratio:
+                best_ratio, best = r, (ri, di, dj)
+        if best and best_ratio >= 0.6:
+            ri, di, dj = best
+            used_del.add(ri)
+            for k in range(ai, aj):
+                if tokens[k].get("t") == "add":
+                    tokens[k]["t"] = "moved"
+            for k in range(di, dj):
+                tokens[k]["_drop"] = True
+    return [t for t in tokens if not t.get("_drop")]
+
+
 def build_scene_diff(script_text, refs, extra_pool=None, script_paragraphs=None):
     """Token stream para el PDF, con el TEXTO BÍBLICO como base.
 
@@ -333,6 +395,7 @@ def build_scene_diff(script_text, refs, extra_pool=None, script_paragraphs=None)
                 tokens.append({"t": "del", "w": v["raw"][emit_i[vidx]]})
                 emit_i[vidx] += 1
 
+    tokens = _mark_transpositions(tokens)
     return tokens, used_labels, skipped_labels
 
 

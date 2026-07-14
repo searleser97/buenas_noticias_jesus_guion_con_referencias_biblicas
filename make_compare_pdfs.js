@@ -14,6 +14,7 @@ const COLOR_TEXT = '#292929';
 const COLOR_MUTED = '#666666';
 const COLOR_ADD = '#1a7f37';   // verde: añadido por el guion
 const COLOR_DEL = '#cf222e';   // rojo: omitido de la Biblia
+const COLOR_MOVED = '#8250df'; // morado: texto bíblico dicho en otro orden
 const COLOR_VERSENUM = '#4a6da7'; // azul jw.org para números de versículo
 
 const TEXT_SIZE = 11;
@@ -86,14 +87,17 @@ function buildPdf(ep) {
   doc.fillColor(COLOR_TEXT).text('   ·   ', { continued: true });
   doc.fillColor(COLOR_ADD).font('Helvetica-Bold').text('añadido por el guion', { continued: true });
   doc.fillColor(COLOR_TEXT).font('Helvetica').text('   ·   ', { continued: true });
-  doc.fillColor(COLOR_DEL).font('Helvetica').text('omitido por el guion', { strike: true, continued: false });
+  doc.fillColor(COLOR_DEL).font('Helvetica').text('omitido por el guion', { strike: true, continued: true });
+  doc.fillColor(COLOR_TEXT).font('Helvetica').text('   ·   ', { strike: false, continued: true });
+  doc.fillColor(COLOR_MOVED).font('Helvetica-Oblique').text('dicho en otro orden', { continued: false });
   doc.moveDown(0.5);
   doc.fillColor(COLOR_MUTED).font('Helvetica-Oblique').fontSize(9)
     .text('El texto base es el de la Biblia (versículo por versículo), con el número de '
       + 'versículo en azul. En verde, las palabras que el guion añade; tachado en rojo, las '
       + 'palabras bíblicas que el guion no dice. Cuando una escena combina varios relatos '
       + '(Mateo, Marcos, Lucas, Juan), se mezclan en un solo texto continuo, indicando con la '
-      + 'abreviatura del libro de dónde proviene cada parte.',
+      + 'abreviatura del libro de dónde proviene cada parte. En morado cursiva, texto bíblico '
+      + 'que la película dice en distinto orden del que tiene en el versículo.',
       { align: 'left' });
   doc.moveDown(0.8);
 
@@ -129,14 +133,15 @@ function buildPdf(ep) {
 
     // Ignora los saltos de línea del guion; trabajamos en párrafo continuo.
     const toks = scene.tokens.filter((tk) => tk.t !== 'br');
-    const isAdd = (tk) => tk && tk.t === 'add';
+    // 'add' (añadido) y 'moved' (reubicado) rompen el párrafo a su propia línea.
+    const isSep = (tk) => tk && (tk.t === 'add' || tk.t === 'moved');
 
     for (let idx = 0; idx < toks.length; idx++) {
       const tk = toks[idx];
       const last = idx === toks.length - 1;
-      // Rompe la línea al pasar de texto base a añadido o viceversa, para que
-      // cada bloque añadido quede en su propia línea.
-      const brk = !last && isAdd(tk) !== isAdd(toks[idx + 1]);
+      // Rompe la línea al pasar de texto base a añadido/reubicado o viceversa,
+      // para que cada bloque destacado quede en su propia línea.
+      const brk = !last && isSep(tk) !== isSep(toks[idx + 1]);
       const sp = { ...OPTS, strike: false, continued: !last && !brk };
       if (tk.t === 'book') {
         doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT).text(tk.w, OPTS);
@@ -148,6 +153,7 @@ function buildPdf(ep) {
         let color = COLOR_TEXT, font = 'Helvetica', strike = false;
         if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
         else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
+        else if (tk.t === 'moved') { color = COLOR_MOVED; font = 'Helvetica-Oblique'; }
         doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
         doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
       }
