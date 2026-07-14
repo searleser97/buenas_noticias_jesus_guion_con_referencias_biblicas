@@ -35,8 +35,9 @@ Cada día del programa (Viernes, Sábado, Domingo) tiene una sección
 ## Guion de las películas
 
 Además de los textos bíblicos, el proyecto genera un **PDF con el guion** de cada
-película, organizado **por escena**, con los pasajes bíblicos que representa y el
-texto contrastado contra la Escritura (resaltado por color). Este PDF es la única
+película, organizado **por escena**. El **texto base es el de la Biblia** (versículo
+por versículo, con el número de versículo en azul) y sobre él se resalta lo que el
+guion **añade** (verde) y lo que **omite** (tachado en rojo). Este PDF es la única
 versión del guion: reemplaza al antiguo PDF de "guion literal".
 
 | PDF | Día | Película |
@@ -58,20 +59,22 @@ cada video (no se transcribe el audio), por lo que el texto es **exacto**:
      coincidencia difusa), y guarda todo en `script_data.json`.
 
 2. **`compare_fetch.mjs`** descarga el texto de los versículos de cada escena
-   (reutilizando `extract.js`) a `bible_scenes.json`.
+   (reutilizando `extract.js`) a `bible_scenes.json`. Los capítulos descargados se
+   **cachean en `bible_chapters.json`** (versionado en el repo): así el resultado del
+   API queda respaldado y las corridas posteriores no vuelven a llamarlo (si el
+   caché ya cubre todo, ni siquiera se abre el navegador).
 
-3. **`compare_bible.py`** alinea, palabra por palabra, el guion contra la Escritura
-   referenciada. Cuando una escena se basa en varios relatos paralelos, selecciona
-   el pasaje —o los pasajes— que más se asemejan a los subtítulos, y guarda el diff
-   por escena en `compare_diff.json`.
+3. **`compare_bible.py`** alinea, palabra por palabra, el guion contra el texto
+   bíblico. **Sin relatos paralelos:** por escena elige **un solo relato** (el que
+   más se asemeja a los subtítulos) como base, y guarda el diff en `compare_diff.json`.
 
 4. **`make_compare_pdfs.js`** renderiza el PDF del guion por película, con el mismo
    estilo que los PDFs de textos bíblicos:
    - **Título de la escena** en azul oscuro y **pasajes bíblicos** en naranja negrita.
-   - **Nombre del libro abreviado** (naranja) y **números de versículo** (azul) para
-     marcar de qué relato proviene cada tramo (p. ej. `Lu 4:40 … Mt 8:16`).
-   - Diff resaltado: negro = igual al bíblico, **verde** = añadido por el guion,
-     ~~rojo tachado~~ = versículo referenciado que el film no narra.
+   - **Texto base bíblico** con el **nombre del libro abreviado** (naranja) y los
+     **números de versículo** (azul).
+   - Sobre la base: **verde** = palabras que el guion añade, ~~rojo tachado~~ =
+     palabras bíblicas que el guion no dice.
 
 ```bash
 npm run guion            # VTT + guía + texto bíblico + diff + PDFs del guion

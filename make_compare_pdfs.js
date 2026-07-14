@@ -52,7 +52,7 @@ function buildPdf(ep) {
     .text(`“${ep.title}”`, { align: 'center' });
   doc.moveDown(0.2);
   doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
-    .text('Comparación: guion vs. texto bíblico', { align: 'center' });
+    .text('Texto bíblico con lo que el guion añade y omite', { align: 'center' });
   doc.moveDown(0.4);
 
   const y = doc.y + 4;
@@ -62,16 +62,17 @@ function buildPdf(ep) {
 
   // ---- Leyenda ----
   doc.fontSize(10).font('Helvetica').fillColor(COLOR_TEXT).text('Leyenda:  ', { continued: true });
-  doc.fillColor(COLOR_TEXT).font('Helvetica').text('texto igual al bíblico', { continued: true });
+  doc.fillColor(COLOR_TEXT).font('Helvetica').text('texto bíblico', { continued: true });
   doc.fillColor(COLOR_TEXT).text('   ·   ', { continued: true });
   doc.fillColor(COLOR_ADD).font('Helvetica-Bold').text('añadido por el guion', { continued: true });
   doc.fillColor(COLOR_TEXT).font('Helvetica').text('   ·   ', { continued: true });
-  doc.fillColor(COLOR_DEL).font('Helvetica').text('omitido de la Biblia', { strike: true, continued: false });
+  doc.fillColor(COLOR_DEL).font('Helvetica').text('omitido por el guion', { strike: true, continued: false });
   doc.moveDown(0.5);
   doc.fillColor(COLOR_MUTED).font('Helvetica-Oblique').fontSize(9)
-    .text('Comparación palabra por palabra. Cuando una escena se basa en varios relatos '
-      + 'paralelos (Mateo, Marcos, Lucas), se compara contra el pasaje —o los pasajes— que '
-      + 'más se asemejan a los subtítulos de la película. Se comparan solo palabras (sin puntuación).',
+    .text('El texto base es el de la Biblia (versículo por versículo), con el número de '
+      + 'versículo en azul. En verde, las palabras que el guion añade; tachado en rojo, las '
+      + 'palabras bíblicas que el guion no dice. Cuando una escena tiene relatos paralelos '
+      + '(Mateo, Marcos, Lucas), se muestra solo el relato con mayor similitud con la película.',
       { align: 'left' });
   doc.moveDown(0.8);
 

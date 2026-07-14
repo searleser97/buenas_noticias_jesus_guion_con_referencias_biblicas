@@ -6,3 +6,7 @@ __pycache__/
 vtt/
 bible_scenes.json
 compare_diff.json
+
+# El caché de capítulos bíblicos SÍ se versiona: respalda el resultado del
+# API de jw.org y permite regenerar los PDFs sin conexión.
+!bible_chapters.json

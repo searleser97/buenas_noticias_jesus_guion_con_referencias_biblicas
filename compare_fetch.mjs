@@ -22,7 +22,9 @@ function slugFromHref(href) {
 }
 
 // Texto de un rango de versículos de un único ref (posible multi-capítulo).
-async function fetchRefText(page, slug, tv, cache) {
+// `ensurePage` lanza el navegador solo si hace falta descargar algo (perezoso):
+// si el capítulo ya está en el caché de disco, no se llama a jw.org.
+async function fetchRefText(ensurePage, slug, tv, cache) {
   const parts = String(tv).split('-');
   const start = parseId(parts[0]);
   const end = parts[1] ? parseId(parts[1]) : { ...start };
@@ -32,6 +34,7 @@ async function fetchRefText(page, slug, tv, cache) {
     const key = `${slug}|${u.chapter}`;
     if (!cache.has(key)) {
       console.log(`    Descargando ${slug} ${u.chapter}...`);
+      const page = await ensurePage();
       cache.set(key, await scrapeChapter(page, slug, u.chapter));
     }
     const chapVerses = cache.get(key);
@@ -43,12 +46,40 @@ async function fetchRefText(page, slug, tv, cache) {
   return verses;
 }
 
+// Caché persistente de capítulos ({ "slug|capitulo": { num: texto } }) para
+// respaldar el resultado del API y permitir corridas sin red.
+const CACHE_FILE = 'bible_chapters.json';
+
+function loadCache() {
+  if (fs.existsSync(CACHE_FILE)) {
+    try {
+      return new Map(Object.entries(JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))));
+    } catch { /* caché corrupto: se regenera */ }
+  }
+  return new Map();
+}
+
+function saveCache(cache) {
+  const obj = {};
+  for (const [k, v] of [...cache.entries()].sort()) obj[k] = v;
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 1), 'utf8');
+}
+
 async function main() {
   const data = JSON.parse(fs.readFileSync('script_data.json', 'utf8'));
-  const browser = await chromium.launch();
-  const context = await newContext(browser);
-  const page = await context.newPage();
-  const cache = new Map();
+  const cache = loadCache();
+  const cacheSize0 = cache.size;
+  console.log(`Caché de capítulos: ${cacheSize0} en disco (${CACHE_FILE}).`);
+
+  let browser = null, page = null;
+  async function ensurePage() {
+    if (page) return page;
+    console.log('Lanzando navegador (hay capítulos que descargar)...');
+    browser = await chromium.launch();
+    const context = await newContext(browser);
+    page = await context.newPage();
+    return page;
+  }
 
   const out = [];
   for (const movie of data) {
@@ -59,7 +90,7 @@ async function main() {
       for (const ref of scene.refs || []) {
         const slug = slugFromHref(ref.href);
         if (!slug || !ref.tv) { refsOut.push({ label: ref.label, verses: [] }); continue; }
-        const verses = await fetchRefText(page, slug, ref.tv, cache);
+        const verses = await fetchRefText(ensurePage, slug, ref.tv, cache);
         refsOut.push({ label: ref.label, verses });
       }
       const bibleText = refsOut
@@ -85,9 +116,14 @@ async function main() {
     });
   }
 
-  await browser.close();
+  if (browser) await browser.close();
+  saveCache(cache);
   fs.writeFileSync('bible_scenes.json', JSON.stringify(out, null, 2), 'utf8');
-  console.log('\n✔ Texto bíblico por escena guardado en bible_scenes.json');
+  const fetched = cache.size - cacheSize0;
+  console.log(`\n✔ Texto bíblico por escena guardado en bible_scenes.json`);
+  console.log(fetched > 0
+    ? `  (${fetched} capítulos nuevos descargados; caché total: ${cache.size})`
+    : `  (sin descargas: todo provino del caché en disco)`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

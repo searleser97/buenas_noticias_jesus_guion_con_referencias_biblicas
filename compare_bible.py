@@ -51,41 +51,41 @@ def _ref_tokens(ref):
     return tokenize(text)
 
 
-def select_spine(script_norm, refs):
-    """Elige, por escena, los pasajes que la película realmente representa.
+def _group_refs_by_book(refs):
+    """Agrupa las referencias de una escena por libro (relato)."""
+    groups, order = {}, []
+    for r in refs:
+        ab = _abbrev_from_label(r.get("label", ""))
+        if ab not in groups:
+            groups[ab] = []
+            order.append(ab)
+        groups[ab].append(r)
+    return [(ab, groups[ab]) for ab in order]
 
-    Greedy tipo set-cover: se van seleccionando las referencias que aportan
-    más palabras NUEVAS del guion. Los relatos paralelos redundantes (cuyo
-    contenido ya cubre otra referencia) no aportan cobertura nueva y quedan
-    fuera, así que no se cuentan como 'omitidos'.
+
+def select_base_account(s_norm, refs):
+    """Elige el ÚNICO relato (libro) que la película sigue más de cerca.
+
+    Sin relatos paralelos: se puntúa cada libro por cuántas palabras del guion
+    explica (coincidencia en orden) y se toma el de mayor puntuación como base.
+    Devuelve (refs_base, refs_descartadas).
     """
-    from collections import Counter
-    toklist = [(_ref_tokens(r), r.get("label", "")) for r in refs]
-    remaining = Counter(script_norm)
-    selected = [False] * len(refs)
-    threshold = max(3, int(0.10 * len(script_norm)))
-
-    def contribution(nl):
-        c = Counter(nl)
-        return sum(min(remaining[w], c[w]) for w in c)
-
-    while True:
-        best, besti = -1, -1
-        for i, ((rraw, rnorm), lab) in enumerate(toklist):
-            if selected[i]:
-                continue
-            contr = contribution(rnorm)
-            if contr > best:
-                best, besti = contr, i
-        if besti < 0:
-            break
-        if best < threshold and any(selected):
-            break
-        selected[besti] = True
-        for w in toklist[besti][0][1]:
-            if remaining[w] > 0:
-                remaining[w] -= 1
-    return selected
+    groups = _group_refs_by_book(refs)
+    if not groups:
+        return [], []
+    best_ab, best_score = groups[0][0], -1
+    for ab, grp in groups:
+        toks = []
+        for r in grp:
+            toks += _ref_tokens(r)[1]
+        sm = SequenceMatcher(a=toks, b=s_norm, autojunk=False)
+        score = sum(i2 - i1 for tag, i1, i2, _, _ in sm.get_opcodes() if tag == "equal")
+        if score > best_score:
+            best_ab, best_score = ab, score
+    base_refs, others = [], []
+    for ab, grp in groups:
+        (base_refs if ab == best_ab else others).extend(grp)
+    return base_refs, others
 
 
 ABBR_FULL = {"Mt": "Mateo", "Mr": "Marcos", "Lu": "Lucas", "Jn": "Juan"}
@@ -97,62 +97,75 @@ def _abbrev_from_label(label):
 
 
 def build_scene_diff(script_text, refs):
-    """Token stream para el PDF con procedencia bíblica.
+    """Token stream para el PDF, con el TEXTO BÍBLICO como base.
 
-    Solo se compara contra los pasajes que la película realmente usa
-    (select_spine). Cada token de texto lleva, cuando procede, el versículo
-    del que viene, y se insertan marcadores de número de versículo y de libro
-    (abreviado) cuando cambia la fuente. Tipos de token:
-      book  -> nombre abreviado del libro (cambio de libro)
+    Se toma un solo relato (select_base_account) y se muestra su texto
+    completo, versículo por versículo, en orden. El guion se superpone:
+      book  -> nombre abreviado del libro
       vnum  -> número de versículo (o 'cap:versículo')
-      eq    -> palabra igual al texto bíblico
-      add   -> palabra añadida por el guion (ausente de la Escritura)
-      del   -> palabra de la Escritura representada que la película no narra
+      eq    -> palabra del texto bíblico (también dicha por el guion)
+      del   -> palabra del texto bíblico que el guion NO dice (rojo)
+      add   -> palabra que el guion AÑADE (ausente del relato base, verde)
+
+    El texto base nunca se pierde: cada palabra bíblica aparece (negra o roja).
+    Las palabras del guion que reordenan texto ya presente en la base no se
+    duplican; solo se marcan en verde las genuinamente añadidas.
     """
     s_raw, s_norm = tokenize(script_text)
     s_set = set(s_norm)
-    union_set = set()
-    for r in refs:
-        union_set |= set(_ref_tokens(r)[1])
 
-    selected = select_spine(s_norm, refs)
-    b_raw, b_norm, b_vid = [], [], []
-    verses_meta = []  # {abbrev, chapter, num}
-    used_labels, skipped_labels = [], []
-    for i, r in enumerate(refs):
-        if not selected[i]:
-            skipped_labels.append(r.get("label", "").strip())
-            continue
-        used_labels.append(r.get("label", "").strip())
+    base_refs, other_refs = select_base_account(s_norm, refs)
+    used_labels = [r.get("label", "").strip() for r in base_refs]
+    skipped_labels = [r.get("label", "").strip() for r in other_refs]
+
+    # Texto base: versículos del relato elegido, ordenados y sin duplicar.
+    seen = set()
+    verses = []  # {abbrev, chapter, num, raw, norm}
+    for r in base_refs:
         abbrev = _abbrev_from_label(r.get("label", ""))
         for v in r.get("verses", []):
+            key = (abbrev, v.get("chapter"), v.get("num"))
+            if key in seen:
+                continue
+            seen.add(key)
             vr, vn = tokenize(v.get("text", ""))
-            vid = len(verses_meta)
-            verses_meta.append({"abbrev": abbrev, "chapter": v.get("chapter"), "num": v.get("num")})
-            for w, n in zip(vr, vn):
-                b_raw.append(w)
-                b_norm.append(n)
-                b_vid.append(vid)
+            verses.append({"abbrev": abbrev, "chapter": v.get("chapter"),
+                           "num": v.get("num"), "raw": vr, "norm": vn})
+    verses.sort(key=lambda x: (x["abbrev"], x["chapter"] or 0, x["num"] or 0))
+
+    b_raw, b_norm, b_vid, verses_meta = [], [], [], []
+    for v in verses:
+        vid = len(verses_meta)
+        verses_meta.append({"abbrev": v["abbrev"], "chapter": v["chapter"], "num": v["num"]})
+        for w, n in zip(v["raw"], v["norm"]):
+            b_raw.append(w)
+            b_norm.append(n)
+            b_vid.append(vid)
+    b_set = set(b_norm)
 
     sm = SequenceMatcher(a=b_norm, b=s_norm, autojunk=False)
     raw_tokens = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             for k in range(i2 - i1):
-                raw_tokens.append({"t": "eq", "w": s_raw[j1 + k], "vid": b_vid[i1 + k]})
-        elif tag == "insert":
-            for j in range(j1, j2):
-                raw_tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j], "vid": None})
+                raw_tokens.append({"t": "eq", "w": b_raw[i1 + k], "vid": b_vid[i1 + k]})
         elif tag == "delete":
             for i in range(i1, i2):
-                if b_norm[i] not in s_set:
-                    raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
-        elif tag == "replace":
+                # Palabra bíblica: negra si el guion la dice en otro punto,
+                # roja si el guion no la pronuncia en absoluto.
+                t = "eq" if b_norm[i] in s_set else "del"
+                raw_tokens.append({"t": t, "w": b_raw[i], "vid": b_vid[i]})
+        elif tag == "insert":
             for j in range(j1, j2):
-                raw_tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j], "vid": None})
+                if s_norm[j] not in b_set:
+                    raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
+        elif tag == "replace":
             for i in range(i1, i2):
-                if b_norm[i] not in s_set:
-                    raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
+                t = "eq" if b_norm[i] in s_set else "del"
+                raw_tokens.append({"t": t, "w": b_raw[i], "vid": b_vid[i]})
+            for j in range(j1, j2):
+                if s_norm[j] not in b_set:
+                    raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
 
     # Inserta marcadores de versículo/libro al cambiar la procedencia.
     tokens = []
