@@ -115,7 +115,6 @@ async function main() {
     }
     out.push({
       episode: movie.episode,
-      day: movie.day || null,
       title: movie.title,
       series: movie.series,
       scenes: scenesOut,

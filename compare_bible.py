@@ -610,7 +610,6 @@ def main():
                 pool += _collect_verses(sc.get("refs", []))
         diff_out.append({
             "episode": movie["episode"],
-            "day": movie.get("day"),
             "title": movie["title"],
             "series": movie.get("series"),
             "scenes": [

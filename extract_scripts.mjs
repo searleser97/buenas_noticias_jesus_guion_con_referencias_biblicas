@@ -5,12 +5,6 @@ import { newContext } from './extract.js';
 
 // Serie "Las buenas noticias segun Jesus" (pub=gnj). El numero de episodio
 // coincide con el numero de "track" en la API de medios.
-// Los episodios 4, 5 y 6 son las peliculas de la Asamblea Regional 2026.
-const ASSEMBLY = {
-  4: { day: 'Viernes', daySlug: 'viernes', fileIndex: 1 },
-  5: { day: 'Sábado', daySlug: 'sabado', fileIndex: 2 },
-  6: { day: 'Domingo', daySlug: 'domingo', fileIndex: 3 },
-};
 
 const INDEX_URL = 'https://www.jw.org/es/biblioteca/%C3%ADndices/guia-videos-buenas-noticias-segun-jesus/';
 const MEDIA_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -245,12 +239,8 @@ async function main() {
     const assigned = outScenes.reduce((n, s) => n + s.paragraphs.length, 0);
     console.log(`  escenas: ${outScenes.length}, cues: ${cues.length}, parrafos: ${assigned}`);
 
-    const asm = ASSEMBLY[episode] || {};
     out.push({
       episode,
-      fileIndex: asm.fileIndex ?? episode,
-      day: asm.day ?? null,
-      daySlug: asm.daySlug ?? null,
       title: guide.title.replace(/^[“"'\s]+|[”"'\s]+$/g, ''),
       series: `Episodio ${episode}`,
       guide: guide.url,
@@ -258,8 +248,8 @@ async function main() {
     });
   }
   await browser.close();
-  // Ordenar por indice de archivo para una salida estable.
-  out.sort((a, b) => a.fileIndex - b.fileIndex);
+  // Ordenar por numero de episodio para una salida estable.
+  out.sort((a, b) => a.episode - b.episode);
   fs.writeFileSync('script_data.json', JSON.stringify(out, null, 2), 'utf8');
   console.log('Escrito script_data.json');
 }
@@ -268,4 +258,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await main();
 }
 
-export { ASSEMBLY, fetchSubtitleMap, downloadVtt, discoverGuides, scrapeGuide, parseVtt, assignCues, cuesToParagraphs, expandRefs, tsToSeconds, vttPath };
+export { fetchSubtitleMap, downloadVtt, discoverGuides, scrapeGuide, parseVtt, assignCues, cuesToParagraphs, expandRefs, tsToSeconds, vttPath };
