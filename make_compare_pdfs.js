@@ -67,9 +67,10 @@ function buildPdf(ep) {
   doc.fillColor(COLOR_DEL).font('Helvetica').text('omitido de la Biblia', { strike: true, continued: false });
   doc.moveDown(0.5);
   doc.fillColor(COLOR_MUTED).font('Helvetica-Oblique').fontSize(9)
-    .text('Comparación palabra por palabra. Las escenas citan relatos paralelos (Mateo, Marcos, '
-      + 'Lucas); las palabras únicas del relato que la película no narra aparecen como omitidas. '
-      + 'Se comparan solo palabras (sin puntuación).', { align: 'left' });
+    .text('Comparación palabra por palabra. Cuando una escena se basa en varios relatos '
+      + 'paralelos (Mateo, Marcos, Lucas), se compara contra el pasaje —o los pasajes— que '
+      + 'más se asemejan a los subtítulos de la película. Se comparan solo palabras (sin puntuación).',
+      { align: 'left' });
   doc.moveDown(0.8);
 
   // ---- Escenas ----
@@ -84,14 +85,6 @@ function buildPdf(ep) {
     if (scene.references) {
       doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLOR_ACCENT)
         .text(scene.references, { align: 'left' });
-    }
-    if (scene.usedRefs && scene.usedRefs.length) {
-      doc.font('Helvetica').fontSize(8.5).fillColor(COLOR_MUTED)
-        .text('Representado (comparado): ' + scene.usedRefs.join(' ').replace(/;+$/,''), { align: 'left' });
-    }
-    if (scene.skippedRefs && scene.skippedRefs.length) {
-      doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(COLOR_MUTED)
-        .text('No representado (relato paralelo, no se compara): ' + scene.skippedRefs.join(' ').replace(/;+$/,''), { align: 'left' });
     }
     doc.moveDown(0.35);
 
