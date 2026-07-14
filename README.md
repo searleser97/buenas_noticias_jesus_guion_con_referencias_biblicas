@@ -32,11 +32,12 @@ Cada día del programa (Viernes, Sábado, Domingo) tiene una sección
      al cambiar de capítulo (p. ej. `6:1`).
    - Texto **justificado**, con los colores oficiales de jw.org.
 
-## Guion literal de las películas
+## Guion de las películas
 
-Además de los textos bíblicos, el proyecto genera un **PDF con el guion literal**
-(los diálogos y la narración) de cada película, organizado **por escena** y con los
-pasajes bíblicos que se representan en cada una.
+Además de los textos bíblicos, el proyecto genera un **PDF con el guion** de cada
+película, organizado **por escena**, con los pasajes bíblicos que representa y el
+texto contrastado contra la Escritura (resaltado por color). Este PDF es la única
+versión del guion: reemplaza al antiguo PDF de "guion literal".
 
 | PDF | Día | Película |
 |-----|-----|----------|
@@ -56,21 +57,31 @@ cada video (no se transcribe el audio), por lo que el texto es **exacto**:
    - Alinea los subtítulos con cada escena **por marca de tiempo** (no por
      coincidencia difusa), y guarda todo en `script_data.json`.
 
-2. **`make_script_pdfs.js`** genera un PDF por película:
-   - **Título de la escena** en azul oscuro.
-   - **Pasajes bíblicos** de la escena en naranja negrita, con el rango de tiempo.
-   - **Guion** en párrafos justificados; los turnos de diálogo se marcan con "—".
+2. **`compare_fetch.mjs`** descarga el texto de los versículos de cada escena
+   (reutilizando `extract.js`) a `bible_scenes.json`.
 
-3. **`verify_scripts.mjs`** comprueba que el guion coincide **palabra por palabra
-   y en orden** con los subtítulos VTT de origen.
+3. **`compare_bible.py`** alinea, palabra por palabra, el guion contra la Escritura
+   referenciada. Cuando una escena se basa en varios relatos paralelos, selecciona
+   el pasaje —o los pasajes— que más se asemejan a los subtítulos. Genera
+   `compare_diff.json` y un reporte Markdown por película
+   (`episodio_N_titulo_comparacion.md`) con las palabras añadidas por el film.
+
+4. **`make_compare_pdfs.js`** renderiza el PDF del guion por película, con el mismo
+   estilo que los PDFs de textos bíblicos:
+   - **Título de la escena** en azul oscuro y **pasajes bíblicos** en naranja negrita.
+   - **Nombre del libro abreviado** (naranja) y **números de versículo** (azul) para
+     marcar de qué relato proviene cada tramo (p. ej. `Lu 4:40 … Mt 8:16`).
+   - Diff resaltado: negro = igual al bíblico, **verde** = añadido por el guion,
+     ~~rojo tachado~~ = versículo referenciado que el film no narra.
 
 ```bash
-npm run scripts          # descarga VTT + guía y genera los 3 PDFs del guion
+npm run guion            # VTT + guía + texto bíblico + diff + PDFs del guion
 npm run verify:scripts   # verifica el guion contra los subtítulos oficiales
 ```
 
-O por pasos: `npm run extract:scripts` (-> `script_data.json`) y luego
-`npm run pdf:scripts` (-> `output/*_guion.pdf`).
+O por pasos: `npm run extract:scripts` (-> `script_data.json`), `npm run guion:data`
+(-> `bible_scenes.json` + `compare_diff.json` + reportes MD) y `npm run pdf:guion`
+(-> `output/*_guion.pdf`).
 
 ### Otros episodios de la serie
 
@@ -80,54 +91,21 @@ argumentos:
 
 ```bash
 node extract_scripts.mjs 1 2 3   # genera script_data.json para los episodios 1, 2 y 3
-npm run pdf:scripts              # -> output/episodio_1_*.pdf, etc.
+npm run pdf:guion                # -> output/episodio_1_*_guion.pdf, etc.
 ```
 
 Todos los PDFs siguen el mismo formato de nombre:
 `episodio_N_titulo.pdf` (textos bíblicos) y `episodio_N_titulo_guion.pdf` (guion).
 
-### Verificación
+### Verificación y reportes
 
 - `npm run verify:scripts` — comprueba que el guion coincide **palabra por palabra**
   con los subtítulos VTT de origen.
-- `npm run verify:scripts:pdf` — comprueba que **todas** esas palabras aparecen, en
-  orden, en los PDFs ya generados.
-
-## Comparación del guion contra el texto bíblico
-
-Verifica hasta qué punto el guion de cada película coincide con los versículos
-que la *Guía de videos* referencia en cada escena.
-
-```bash
-npm run compare       # descarga el texto bíblico por escena y genera los reportes MD
-npm run compare:pdf   # además genera un PDF de comparación con resaltado por color
-```
-
-Esto produce un archivo Markdown por película en `output/`
-(`episodio_N_titulo_comparacion.md`) con:
-
-- **Cobertura en orden**: porcentaje de palabras del guion que aparecen
-  textualmente y en el mismo orden que la Escritura referenciada.
-- **Cobertura sin orden**: mismas palabras sin exigir el orden (el film armoniza
-  varios evangelios y reordena frases que sí son textuales).
-- La lista, por escena, de las palabras del guion que **no** provienen de ningún
+- Los reportes `episodio_N_titulo_comparacion.md` detallan, por escena, la cobertura
+  del guion frente a la Escritura y las palabras que **no** provienen de ningún
   versículo referenciado (diálogo ambiental dramatizado: gritos de la multitud,
   nombres, interjecciones, conectores).
 
-Con `npm run compare:pdf` (o `npm run pdf:compare` si ya existe
-`compare_diff.json`) se genera además un **PDF de comparación por película**
-(`episodio_N_titulo_comparacion.pdf`) con el diff palabra por palabra resaltado:
-
-- Negro: texto igual al bíblico.
-- **Verde**: palabras añadidas por el guion (ausentes de la Escritura).
-- ~~Rojo tachado~~: palabras de la Escritura referenciada que el film no narra
-  (en su mayoría, relatos paralelos que se cuentan una sola vez).
-
-Internamente `compare_fetch.mjs` descarga el texto de los versículos de cada
-escena (reutilizando `extract.js`) a `bible_scenes.json`, `compare_bible.py`
-alinea guion y Escritura con `difflib` (genera los MD y `compare_diff.json`), y
-`make_compare_pdfs.js` renderiza los PDF. Los reportes MD solo detallan las
-escenas con palabras añadidas por el film.
 
 ## Uso
 

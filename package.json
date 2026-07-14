@@ -10,14 +10,11 @@
     "verify:source": "node verify_source.js",
     "verify:pdf": "python verify_pdf.py",
     "extract:scripts": "node extract_scripts.mjs",
-    "pdf:scripts": "node make_script_pdfs.js",
-    "scripts": "node extract_scripts.mjs && node make_script_pdfs.js",
     "verify:scripts": "node verify_scripts.mjs",
-    "verify:scripts:pdf": "python verify_script_pdf.py",
-    "compare:fetch": "node compare_fetch.mjs",
-    "compare": "node compare_fetch.mjs && python compare_bible.py",
-    "pdf:compare": "node make_compare_pdfs.js",
-    "compare:pdf": "node compare_fetch.mjs && python compare_bible.py && node make_compare_pdfs.js"
+    "guion:fetch": "node compare_fetch.mjs",
+    "guion:data": "node compare_fetch.mjs && python compare_bible.py",
+    "pdf:guion": "node make_compare_pdfs.js",
+    "guion": "node extract_scripts.mjs && node compare_fetch.mjs && python compare_bible.py && node make_compare_pdfs.js"
   },
   "keywords": [],
   "author": "",

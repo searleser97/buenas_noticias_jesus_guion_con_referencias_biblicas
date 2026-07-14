@@ -25,7 +25,7 @@ function slug(s) {
 }
 
 function buildPdf(ep) {
-  const fileName = `episodio_${ep.episode}_${slug(ep.title)}_comparacion.pdf`;
+  const fileName = `episodio_${ep.episode}_${slug(ep.title)}_guion.pdf`;
   const filePath = path.join(OUT_DIR, fileName);
   const doc = new PDFDocument({ size: 'A4', margins: { top: 60, bottom: 60, left: 60, right: 60 }, bufferPages: true });
   const stream = fs.createWriteStream(filePath);
@@ -121,7 +121,7 @@ function buildPdf(ep) {
     const bottom = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(8)
-      .text(`${ep.series || ''} — “${ep.title}” · comparación — página ${i - range.start + 1} de ${range.count}`,
+      .text(`${ep.series || ''} — “${ep.title}” · guion — página ${i - range.start + 1} de ${range.count}`,
         doc.page.margins.left, doc.page.height - 40,
         { width: pageWidth, align: 'center', lineBreak: false });
     doc.page.margins.bottom = bottom;
@@ -133,5 +133,5 @@ function buildPdf(ep) {
 
 const files = [];
 for (const ep of movies) files.push(await buildPdf(ep));
-console.log('PDFs de comparación generados:');
+console.log('PDFs de guion generados:');
 files.forEach(f => console.log('  ' + f));
