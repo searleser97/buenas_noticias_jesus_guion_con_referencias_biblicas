@@ -52,22 +52,59 @@ def tokenize(text):
 def _align_verse(v_norm, s_norm):
     """Alinea un versículo contra el guion.
 
-    Devuelve (score, matched_js, anchor) donde matched_js es el conjunto de
-    índices del guion que este versículo cubre (subsecuencia en orden), score
-    su tamaño y anchor la posición donde empieza a cubrir el guion.
+    Devuelve (score, matched_js, anchor, max_block):
+      - matched_js: índices del guion que el versículo cubre (subsecuencia)
+      - score: tamaño de matched_js
+      - anchor: posición donde empieza a cubrir el guion
+      - max_block: longitud del bloque contiguo (verbatim) más largo; sirve
+        para exigir una cita literal real al buscar en el corpus.
+      - block_start: índice del guion donde empieza ese bloque más largo; se
+        usa para anclar (ordenar) los versículos prestados del corpus en el
+        lugar donde realmente se cita, no donde coincidan palabras sueltas.
     """
     if not v_norm or not s_norm:
-        return 0, set(), 10 ** 9
+        return 0, set(), 10 ** 9, 0, 10 ** 9
     sm = SequenceMatcher(a=v_norm, b=s_norm, autojunk=False)
     matched = set()
+    max_block = 0
+    block_start = 10 ** 9
     for block in sm.get_matching_blocks():
+        if block.size > max_block:
+            max_block = block.size
+            block_start = block.b
         for k in range(block.size):
             matched.add(block.b + k)
     anchor = min(matched) if matched else 10 ** 9
-    return len(matched), matched, anchor
+    return len(matched), matched, anchor, max_block, block_start
 
 
-def select_spine(s_norm, refs):
+def _collect_verses(refs):
+    """Aplana las referencias en una lista de versículos candidatos."""
+    seen, out = set(), []
+    for r in refs:
+        abbrev = _abbrev_from_label(r.get("label", ""))
+        label = r.get("label", "").strip()
+        for v in r.get("verses", []):
+            key = (abbrev, v.get("chapter"), v.get("num"))
+            if key in seen:
+                continue
+            seen.add(key)
+            vr, vn = tokenize(v.get("text", ""))
+            out.append({"abbrev": abbrev, "chapter": v.get("chapter"),
+                        "num": v.get("num"), "raw": vr, "norm": vn,
+                        "label": label})
+    return out
+
+
+def _density(idx_set):
+    """Qué tan contiguo/denso es un conjunto de índices del guion (0..1)."""
+    if not idx_set:
+        return 0.0
+    span = max(idx_set) - min(idx_set) + 1
+    return len(idx_set) / span
+
+
+def select_spine(s_norm, refs, extra_pool=None):
     """Construye la base MEZCLANDO los relatos referenciados.
 
     La película arma una versión armonizada: distintas partes del subtítulo
@@ -80,25 +117,19 @@ def select_spine(s_norm, refs):
     repiten lo que otro relato ya cubrió) y los versículos que la película no
     usa quedan fuera.
 
+    extra_pool (opcional): corpus de versículos donde buscar el origen de lo
+    que dice la película. Idealmente los 4 Evangelios completos (bible_corpus)
+    para no depender de que la Guía liste el versículo. Si la película cita un
+    texto que la Guía no ubica en esta escena (p. ej. un adelanto de Juan 5:25),
+    ese versículo se incorpora a la base para que se muestre como texto bíblico
+    y no como añadido, siempre que cubra de forma densa, contigua y verbatim un
+    tramo del guion aún no explicado.
+
     Devuelve (versículos_ordenados, used_labels, skipped_labels).
     """
-    seen = set()
-    cands = []
-    for r in refs:
-        abbrev = _abbrev_from_label(r.get("label", ""))
-        label = r.get("label", "").strip()
-        for v in r.get("verses", []):
-            key = (abbrev, v.get("chapter"), v.get("num"))
-            if key in seen:
-                continue
-            seen.add(key)
-            vr, vn = tokenize(v.get("text", ""))
-            cands.append({"abbrev": abbrev, "chapter": v.get("chapter"),
-                          "num": v.get("num"), "raw": vr, "norm": vn,
-                          "label": label})
-
+    cands = _collect_verses(refs)
     for c in cands:
-        c["score"], c["matched"], c["anchor"] = _align_verse(c["norm"], s_norm)
+        c["score"], c["matched"], c["anchor"], _, _ = _align_verse(c["norm"], s_norm)
 
     claimed = set()
     accepted = []
@@ -113,6 +144,35 @@ def select_spine(s_norm, refs):
         claimed |= c["matched"]
         c["anchor"] = min(c["matched"])
         accepted.append(c)
+
+    used_keys = {(c["abbrev"], c["chapter"], c["num"]) for c in accepted}
+    own_keys = {(c["abbrev"], c["chapter"], c["num"]) for c in cands}
+
+    # Segunda pasada: busca en el corpus el origen de lo que aún queda sin
+    # explicar (lo que se marcaría como añadido). Solo se acepta un versículo
+    # "prestado" si es una CITA VERBATIM real: un bloque contiguo largo, denso,
+    # que aporta cobertura nueva. Esto evita arrastrar versículos por
+    # coincidencias de palabras funcionales dispersas.
+    if extra_pool:
+        extra = [c for c in extra_pool
+                 if (c["abbrev"], c["chapter"], c["num"]) not in own_keys]
+        for c in extra:
+            (c["score"], c["matched"], c["anchor"],
+             c["max_block"], c["block_start"]) = _align_verse(c["norm"], s_norm)
+        for c in sorted(extra, key=lambda x: (-x.get("max_block", 0), -x["score"])):
+            key = (c["abbrev"], c["chapter"], c["num"])
+            if key in used_keys:
+                continue
+            new = c["matched"] - claimed
+            new_block = c.get("max_block", 0)
+            if (new_block < 5 or len(new) < 5
+                    or len(new) * 2 < c["score"] or _density(new) < 0.5):
+                continue
+            claimed |= c["matched"]
+            # Ancla en el inicio de la cita verbatim, no en coincidencias sueltas.
+            c["anchor"] = c["block_start"]
+            accepted.append(c)
+            used_keys.add(key)
 
     accepted.sort(key=lambda x: (x["anchor"], x["abbrev"],
                                  x["chapter"] or 0, x["num"] or 0))
@@ -138,7 +198,7 @@ def _abbrev_from_label(label):
     return m.group(1).strip() if m else (label or "").strip()
 
 
-def build_scene_diff(script_text, refs):
+def build_scene_diff(script_text, refs, extra_pool=None):
     """Token stream para el PDF, con el TEXTO BÍBLICO como base.
 
     La base MEZCLA los relatos referenciados (select_spine): verso a verso se
@@ -151,61 +211,88 @@ def build_scene_diff(script_text, refs):
       del   -> palabra del texto bíblico que el guion NO dice (rojo tachado)
       add   -> palabra que el guion AÑADE (verde)
 
+    extra_pool: versículos del resto de la película, para incorporar citas que
+    la Guía ubica en otra escena (así no se marcan como añadidas si sí están
+    en la Biblia). Ver select_spine.
+
     El texto base nunca se pierde: cada palabra bíblica aparece (negra si el
     guion la dice, roja tachada si la omite). Las sustituciones se muestran
     como bíblico (rojo) seguido del guion (verde).
     """
     s_raw, s_norm = tokenize(script_text)
 
-    verses, used_labels, skipped_labels = select_spine(s_norm, refs)
+    verses, used_labels, skipped_labels = select_spine(s_norm, refs, extra_pool)
+    if not verses:
+        # Sin base: todo el guion es "añadido".
+        return ([{"t": "add", "w": w} for w in s_raw],
+                used_labels, skipped_labels)
 
-    b_raw, b_norm, b_vid, verses_meta = [], [], [], []
-    for v in verses:
-        vid = len(verses_meta)
-        verses_meta.append({"abbrev": v["abbrev"], "chapter": v["chapter"], "num": v["num"]})
-        for w, n in zip(v["raw"], v["norm"]):
-            b_raw.append(w)
-            b_norm.append(n)
-            b_vid.append(vid)
+    # --- Propiedad por token -------------------------------------------------
+    # Cada palabra del guion se asigna al versículo que la "dice" de forma más
+    # literal (el bloque contiguo más largo que la contiene). Así, aunque una
+    # cita (p. ej. un adelanto de Juan 5:25) parta a la mitad otro versículo,
+    # cada palabra queda atribuida a su verdadero origen.
+    n = len(s_norm)
+    own_v = [None] * n          # índice del versículo dueño de cada palabra
+    own_i = [None] * n          # índice de la palabra dentro de ese versículo
+    own_strength = [0] * n      # tamaño del bloque contiguo que la reclamó
+    for vidx, v in enumerate(verses):
+        sm = SequenceMatcher(a=v["norm"], b=s_norm, autojunk=False)
+        for block in sm.get_matching_blocks():
+            if block.size < 2:
+                continue
+            for k in range(block.size):
+                j = block.b + k
+                if block.size > own_strength[j]:
+                    own_strength[j] = block.size
+                    own_v[j] = vidx
+                    own_i[j] = block.a + k
 
-    sm = SequenceMatcher(a=b_norm, b=s_norm, autojunk=False)
-    raw_tokens = []
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            for k in range(i2 - i1):
-                raw_tokens.append({"t": "eq", "w": b_raw[i1 + k], "vid": b_vid[i1 + k]})
-        elif tag == "delete":
-            # Palabra bíblica que el guion no dice aquí -> rojo tachado.
-            for i in range(i1, i2):
-                raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
-        elif tag == "insert":
-            # Palabra que el guion añade -> verde.
-            for j in range(j1, j2):
-                raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
-        elif tag == "replace":
-            # Sustitución: primero lo bíblico (rojo), luego lo del guion (verde).
-            for i in range(i1, i2):
-                raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
-            for j in range(j1, j2):
-                raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
+    # Última posición del guion donde se pronuncia cada versículo (para volcar
+    # ahí sus palabras no dichas -en rojo- una sola vez).
+    last_j = {}
+    for j in range(n):
+        if own_v[j] is not None:
+            last_j[own_v[j]] = j
 
-    # Inserta marcadores de versículo/libro al cambiar la procedencia.
     tokens = []
-    cur_vid, cur_book = None, None
-    for tk in raw_tokens:
-        vid = tk["vid"]
-        if vid is not None and vid != cur_vid:
-            meta = verses_meta[vid]
-            prev_chapter = verses_meta[cur_vid]["chapter"] if cur_vid is not None else None
-            if meta["abbrev"] != cur_book:
-                tokens.append({"t": "book", "w": meta["abbrev"]})
-                tokens.append({"t": "vnum", "w": f'{meta["chapter"]}:{meta["num"]}'})
-            elif meta["chapter"] != prev_chapter:
-                tokens.append({"t": "vnum", "w": f'{meta["chapter"]}:{meta["num"]}'})
-            else:
-                tokens.append({"t": "vnum", "w": f'{meta["num"]}'})
-            cur_vid, cur_book = vid, meta["abbrev"]
-        tokens.append({"t": tk["t"], "w": tk["w"]})
+    emit_i = [0] * len(verses)   # cuántas palabras de cada versículo ya emitidas
+    cur_book = cur_chapter = None
+    cur_v = None
+
+    def emit_marker(v):
+        nonlocal cur_book, cur_chapter
+        if v["abbrev"] != cur_book:
+            tokens.append({"t": "book", "w": v["abbrev"]})
+            tokens.append({"t": "vnum", "w": f'{v["chapter"]}:{v["num"]}'})
+        elif v["chapter"] != cur_chapter:
+            tokens.append({"t": "vnum", "w": f'{v["chapter"]}:{v["num"]}'})
+        else:
+            tokens.append({"t": "vnum", "w": f'{v["num"]}'})
+        cur_book, cur_chapter = v["abbrev"], v["chapter"]
+
+    for j in range(n):
+        vidx = own_v[j]
+        if vidx is None:
+            # Palabra que el guion añade (no está en ningún versículo).
+            tokens.append({"t": "add", "w": s_raw[j]})
+            continue
+        v = verses[vidx]
+        if vidx != cur_v:
+            emit_marker(v)
+            cur_v = vidx
+        i = own_i[j]
+        # Palabras bíblicas saltadas antes de esta (no dichas) -> rojo.
+        while emit_i[vidx] < i:
+            tokens.append({"t": "del", "w": v["raw"][emit_i[vidx]]})
+            emit_i[vidx] += 1
+        tokens.append({"t": "eq", "w": v["raw"][i]})
+        emit_i[vidx] = i + 1
+        # Si es la última aparición de este versículo, vuelca su cola no dicha.
+        if last_j.get(vidx) == j:
+            while emit_i[vidx] < len(v["raw"]):
+                tokens.append({"t": "del", "w": v["raw"][emit_i[vidx]]})
+                emit_i[vidx] += 1
 
     return tokens, used_labels, skipped_labels
 
@@ -371,6 +458,27 @@ def render_movie_md(movie):
     return "\n".join(lines), overall, len(scenes_with_diffs)
 
 
+def _load_corpus():
+    """Carga bible_corpus.json (Evangelios completos) como candidatos.
+
+    Cada versículo se convierte a la misma forma que _collect_verses, con una
+    etiqueta legible ('Mt 9:13') para poder mostrarlo como referencia si se usa.
+    Si el archivo no existe, se devuelve None (se cae al acervo de la película).
+    """
+    import os
+    if not os.path.exists("bible_corpus.json"):
+        return None
+    with open("bible_corpus.json", "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    out = []
+    for v in raw:
+        vr, vn = tokenize(v.get("text", ""))
+        out.append({"abbrev": v["abbrev"], "chapter": v["chapter"],
+                    "num": v["num"], "raw": vr, "norm": vn,
+                    "label": f'{v["abbrev"]} {v["chapter"]}:{v["num"]}'})
+    return out
+
+
 def main():
     with open("bible_scenes.json", "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -378,18 +486,33 @@ def main():
     import os
     os.makedirs("output", exist_ok=True)
 
+    corpus = _load_corpus()
+    if corpus:
+        print(f"Corpus de Evangelios: {len(corpus)} versículos (bible_corpus.json).")
+    else:
+        print("Sin bible_corpus.json: se usará solo el acervo de cada película.")
+
     diff_out = []
     for movie in data:
         _, overall, n_diffs = render_movie_md(movie)
         print(f"Episodio {movie['episode']}: cobertura {overall*100:.1f}%, "
               f"{n_diffs} escenas con diferencias")
+        # Acervo donde buscar el origen de lo que dice la película: el corpus
+        # completo de los Evangelios si está disponible; si no, las referencias
+        # de todas las escenas de la propia película.
+        if corpus is not None:
+            pool = corpus
+        else:
+            pool = []
+            for sc in movie["scenes"]:
+                pool += _collect_verses(sc.get("refs", []))
         diff_out.append({
             "episode": movie["episode"],
             "day": movie.get("day"),
             "title": movie["title"],
             "series": movie.get("series"),
             "scenes": [
-                _scene_diff_entry(sc)
+                _scene_diff_entry(sc, pool)
                 for sc in movie["scenes"]
             ],
         })
@@ -399,8 +522,9 @@ def main():
     print("Diff por escena guardado en compare_diff.json")
 
 
-def _scene_diff_entry(sc):
-    tokens, used, skipped = build_scene_diff(sc["scriptText"], sc.get("refs", []))
+def _scene_diff_entry(sc, extra_pool=None):
+    tokens, used, skipped = build_scene_diff(
+        sc["scriptText"], sc.get("refs", []), extra_pool)
     return {
         "description": sc["description"],
         "references": sc.get("references", ""),
