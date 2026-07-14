@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 vtt/
 bible_scenes.json
+compare_diff.json

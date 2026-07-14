@@ -99,7 +99,8 @@ Verifica hasta qué punto el guion de cada película coincide con los versículo
 que la *Guía de videos* referencia en cada escena.
 
 ```bash
-npm run compare   # descarga el texto bíblico por escena y genera los reportes
+npm run compare       # descarga el texto bíblico por escena y genera los reportes MD
+npm run compare:pdf   # además genera un PDF de comparación con resaltado por color
 ```
 
 Esto produce un archivo Markdown por película en `output/`
@@ -113,10 +114,20 @@ Esto produce un archivo Markdown por película en `output/`
   versículo referenciado (diálogo ambiental dramatizado: gritos de la multitud,
   nombres, interjecciones, conectores).
 
+Con `npm run compare:pdf` (o `npm run pdf:compare` si ya existe
+`compare_diff.json`) se genera además un **PDF de comparación por película**
+(`episodio_N_titulo_comparacion.pdf`) con el diff palabra por palabra resaltado:
+
+- Negro: texto igual al bíblico.
+- **Verde**: palabras añadidas por el guion (ausentes de la Escritura).
+- ~~Rojo tachado~~: palabras de la Escritura referenciada que el film no narra
+  (en su mayoría, relatos paralelos que se cuentan una sola vez).
+
 Internamente `compare_fetch.mjs` descarga el texto de los versículos de cada
-escena (reutilizando `extract.js`) a `bible_scenes.json`, y `compare_bible.py`
-alinea guion y Escritura con `difflib`. Los reportes solo detallan las escenas
-con palabras añadidas por el film.
+escena (reutilizando `extract.js`) a `bible_scenes.json`, `compare_bible.py`
+alinea guion y Escritura con `difflib` (genera los MD y `compare_diff.json`), y
+`make_compare_pdfs.js` renderiza los PDF. Los reportes MD solo detallan las
+escenas con palabras añadidas por el film.
 
 ## Uso
 

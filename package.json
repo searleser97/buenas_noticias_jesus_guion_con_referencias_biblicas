@@ -15,7 +15,9 @@
     "verify:scripts": "node verify_scripts.mjs",
     "verify:scripts:pdf": "python verify_script_pdf.py",
     "compare:fetch": "node compare_fetch.mjs",
-    "compare": "node compare_fetch.mjs && python compare_bible.py"
+    "compare": "node compare_fetch.mjs && python compare_bible.py",
+    "pdf:compare": "node make_compare_pdfs.js",
+    "compare:pdf": "node compare_fetch.mjs && python compare_bible.py && node make_compare_pdfs.js"
   },
   "keywords": [],
   "author": "",

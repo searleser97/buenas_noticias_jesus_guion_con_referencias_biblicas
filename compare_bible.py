@@ -46,6 +46,94 @@ def tokenize(text):
     return raw, norm
 
 
+def _ref_tokens(ref):
+    text = " ".join(v.get("text", "") for v in ref.get("verses", []))
+    return tokenize(text)
+
+
+def select_spine(script_norm, refs):
+    """Elige, por escena, los pasajes que la película realmente representa.
+
+    Greedy tipo set-cover: se van seleccionando las referencias que aportan
+    más palabras NUEVAS del guion. Los relatos paralelos redundantes (cuyo
+    contenido ya cubre otra referencia) no aportan cobertura nueva y quedan
+    fuera, así que no se cuentan como 'omitidos'.
+    """
+    from collections import Counter
+    toklist = [(_ref_tokens(r), r.get("label", "")) for r in refs]
+    remaining = Counter(script_norm)
+    selected = [False] * len(refs)
+    threshold = max(3, int(0.10 * len(script_norm)))
+
+    def contribution(nl):
+        c = Counter(nl)
+        return sum(min(remaining[w], c[w]) for w in c)
+
+    while True:
+        best, besti = -1, -1
+        for i, ((rraw, rnorm), lab) in enumerate(toklist):
+            if selected[i]:
+                continue
+            contr = contribution(rnorm)
+            if contr > best:
+                best, besti = contr, i
+        if besti < 0:
+            break
+        if best < threshold and any(selected):
+            break
+        selected[besti] = True
+        for w in toklist[besti][0][1]:
+            if remaining[w] > 0:
+                remaining[w] -= 1
+    return selected
+
+
+def build_scene_diff(script_text, refs):
+    """Token stream para el PDF: eq=igual, add=añadido por el guion,
+    del=omitido de la Escritura representada. Los pasajes paralelos que la
+    película no siguió no se consideran (no generan 'del')."""
+    s_raw, s_norm = tokenize(script_text)
+    s_set = set(s_norm)
+    # Verde: una palabra del guion es 'añadida' solo si no aparece en NINGÚN
+    # versículo referenciado (ni siquiera en un relato paralelo).
+    union_set = set()
+    for r in refs:
+        union_set |= set(_ref_tokens(r)[1])
+
+    selected = select_spine(s_norm, refs)
+    b_raw, b_norm = [], []
+    used_labels, skipped_labels = [], []
+    for i, r in enumerate(refs):
+        rr, rn = _ref_tokens(r)
+        if selected[i]:
+            b_raw += rr
+            b_norm += rn
+            used_labels.append(r.get("label", "").strip())
+        else:
+            skipped_labels.append(r.get("label", "").strip())
+
+    sm = SequenceMatcher(a=b_norm, b=s_norm, autojunk=False)
+    tokens = []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            for j in range(j1, j2):
+                tokens.append({"t": "eq", "w": s_raw[j]})
+        elif tag == "insert":
+            for j in range(j1, j2):
+                tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j]})
+        elif tag == "delete":
+            for i in range(i1, i2):
+                if b_norm[i] not in s_set:
+                    tokens.append({"t": "del", "w": b_raw[i]})
+        elif tag == "replace":
+            for j in range(j1, j2):
+                tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j]})
+            for i in range(i1, i2):
+                if b_norm[i] not in s_set:
+                    tokens.append({"t": "del", "w": b_raw[i]})
+    return tokens, used_labels, skipped_labels
+
+
 def compare_scene(script_text, bible_text):
     s_raw, s_norm = tokenize(script_text)
     b_raw, b_norm = tokenize(bible_text)
@@ -214,6 +302,7 @@ def main():
     import os
     os.makedirs("output", exist_ok=True)
 
+    diff_out = []
     for movie in data:
         md, overall, n_diffs = render_movie_md(movie)
         slug = slugify(movie["title"])
@@ -222,6 +311,31 @@ def main():
             f.write(md)
         print(f"Episodio {movie['episode']}: cobertura {overall*100:.1f}%, "
               f"{n_diffs} escenas con diferencias -> {fname}")
+        diff_out.append({
+            "episode": movie["episode"],
+            "day": movie.get("day"),
+            "title": movie["title"],
+            "series": movie.get("series"),
+            "scenes": [
+                _scene_diff_entry(sc)
+                for sc in movie["scenes"]
+            ],
+        })
+
+    with open("compare_diff.json", "w", encoding="utf-8") as f:
+        json.dump(diff_out, f, ensure_ascii=False, indent=1)
+    print("Diff por escena guardado en compare_diff.json")
+
+
+def _scene_diff_entry(sc):
+    tokens, used, skipped = build_scene_diff(sc["scriptText"], sc.get("refs", []))
+    return {
+        "description": sc["description"],
+        "references": sc.get("references", ""),
+        "usedRefs": [l for l in used if l],
+        "skippedRefs": [l for l in skipped if l],
+        "tokens": tokens,
+    }
 
 
 if __name__ == "__main__":
