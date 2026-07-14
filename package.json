@@ -1,12 +1,10 @@
 {
   "name": "assembly_movies_script_extractor",
   "version": "1.0.0",
-  "description": "Extrae los textos biblicos de las peliculas de la Asamblea Regional 2026 (jw.org) y genera un PDF por pelicula.",
-  "main": "extract.js",
+  "description": "Genera, por película de la Asamblea Regional 2026 (jw.org), un PDF que muestra el texto bíblico versículo por versículo con lo que el guion de la película añade, omite o dice en otro orden.",
+  "main": "make_compare_pdfs.js",
   "scripts": {
     "extract": "node extract.js",
-    "pdf": "node make_pdfs.js",
-    "start": "node extract.js && node make_pdfs.js",
     "verify:source": "node verify_source.js",
     "verify:pdf": "python verify_pdf.py",
     "extract:scripts": "node extract_scripts.mjs",
@@ -15,7 +13,8 @@
     "guion:corpus": "node fetch_corpus.mjs",
     "guion:data": "node compare_fetch.mjs && python compare_bible.py",
     "pdf:guion": "node make_compare_pdfs.js",
-    "guion": "node extract_scripts.mjs && node compare_fetch.mjs && node fetch_corpus.mjs && python compare_bible.py && node make_compare_pdfs.js"
+    "guion": "node extract_scripts.mjs && node compare_fetch.mjs && node fetch_corpus.mjs && python compare_bible.py && node make_compare_pdfs.js",
+    "start": "npm run guion"
   },
   "keywords": [],
   "author": "",
