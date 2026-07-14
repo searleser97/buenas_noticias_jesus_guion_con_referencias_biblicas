@@ -22,9 +22,7 @@ function slug(s) {
 }
 
 function buildPdf(ep, index) {
-  const fileName = ep.daySlug
-    ? `${ep.fileIndex ?? index}_${ep.daySlug}_episodio_${ep.episode}_guion.pdf`
-    : `episodio_${ep.episode}_${slug(ep.title)}_guion.pdf`;
+  const fileName = `episodio_${ep.episode}_${slug(ep.title)}_guion.pdf`;
   const filePath = path.join(OUT_DIR, fileName);
   const doc = new PDFDocument({ size: 'A4', margins: { top: 60, bottom: 60, left: 60, right: 60 }, bufferPages: true });
   const stream = fs.createWriteStream(filePath);

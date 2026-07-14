@@ -9,9 +9,9 @@ Cada día del programa (Viernes, Sábado, Domingo) tiene una sección
 
 | PDF | Día | Película |
 |-----|-----|----------|
-| `output/1_viernes_episodio.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
-| `output/2_sabado_episodio.pdf`  | Sábado  | Episodio 5 — "Impactados con su manera de enseñar" |
-| `output/3_domingo_episodio.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
+| `output/episodio_4_para_eso_he_venido.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
+| `output/episodio_5_impactados_con_su_manera_de_ensenar.pdf` | Sábado | Episodio 5 — "Impactados con su manera de enseñar" |
+| `output/episodio_6_eres_tu_el_que_tiene_que_venir.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
 
 ## Cómo funciona
 
@@ -40,9 +40,9 @@ pasajes bíblicos que se representan en cada una.
 
 | PDF | Día | Película |
 |-----|-----|----------|
-| `output/1_viernes_episodio_4_guion.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
-| `output/2_sabado_episodio_5_guion.pdf`  | Sábado  | Episodio 5 — "Impactados con su manera de enseñar" |
-| `output/3_domingo_episodio_6_guion.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
+| `output/episodio_4_para_eso_he_venido_guion.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
+| `output/episodio_5_impactados_con_su_manera_de_ensenar_guion.pdf` | Sábado | Episodio 5 — "Impactados con su manera de enseñar" |
+| `output/episodio_6_eres_tu_el_que_tiene_que_venir_guion.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
 
 El guion se obtiene de los **subtítulos oficiales (`.vtt`)** que jw.org publica para
 cada video (no se transcribe el audio), por lo que el texto es **exacto**:
@@ -83,8 +83,8 @@ node extract_scripts.mjs 1 2 3   # genera script_data.json para los episodios 1,
 npm run pdf:scripts              # -> output/episodio_1_*.pdf, etc.
 ```
 
-Los episodios 4, 5 y 6 (la asamblea 2026) llevan el día en el nombre del archivo
-(`1_viernes_episodio_4_guion.pdf`); el resto usa `episodio_N_titulo_guion.pdf`.
+Todos los PDFs siguen el mismo formato de nombre:
+`episodio_N_titulo.pdf` (textos bíblicos) y `episodio_N_titulo_guion.pdf` (guion).
 
 ### Verificación
 

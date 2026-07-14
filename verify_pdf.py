@@ -36,20 +36,24 @@ def pdf_text(path, series):
 
 
 problems = 0
-pdfs = {p.split('_')[1]: p for p in sorted(glob.glob('output/*.pdf'))}
-# mapa daySlug -> archivo
-day_to_pdf = {}
+# mapa numero de episodio -> archivo del PDF de versiculos (se excluyen los guiones).
+import re as _re
+ep_to_pdf = {}
 for p in sorted(glob.glob('output/*.pdf')):
     name = p.replace('\\', '/').split('/')[-1]
-    slug = name.split('_')[1]
-    day_to_pdf[slug] = p
+    if name.endswith('_guion.pdf'):
+        continue
+    m = _re.search(r'episodio_(\d+)', name)
+    if m:
+        ep_to_pdf[m.group(1)] = p
 
 for movie in movies:
-    slug = movie['daySlug']
-    path = day_to_pdf.get(slug)
+    m = _re.search(r'Episodio\s+(\d+)', movie['series'])
+    epnum = m.group(1) if m else None
+    path = ep_to_pdf.get(epnum)
     print(f"\n== {movie['day']} — {movie['series']} ==")
     if not path:
-        print(f"  \u2717 No se encontró PDF para {slug}")
+        print(f"  \u2717 No se encontró PDF para el episodio {epnum}")
         problems += 1
         continue
     text = pdf_text(path, movie['series'])

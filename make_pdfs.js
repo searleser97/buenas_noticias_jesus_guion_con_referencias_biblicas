@@ -22,7 +22,7 @@ function slugForFile(s) {
 function buildPdf(movie, index) {
   const epMatch = movie.series.match(/Episodio\s+(\d+)/i);
   const epNum = epMatch ? epMatch[1] : String(index);
-  const fileName = `${index}_${movie.daySlug}_episodio_${epNum}.pdf`;
+  const fileName = `episodio_${epNum}_${slugForFile(movie.title)}.pdf`;
   const filePath = path.join(OUT_DIR, fileName);
   const doc = new PDFDocument({ size: 'A4', margins: { top: 60, bottom: 60, left: 60, right: 60 }, bufferPages: true });
   const stream = fs.createWriteStream(filePath);

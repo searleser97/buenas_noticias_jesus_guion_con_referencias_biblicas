@@ -12,8 +12,6 @@ def slug(s):
     return s
 
 def pdf_name(ep, i):
-    if ep.get('daySlug'):
-        return f"{ep.get('fileIndex', i)}_{ep['daySlug']}_episodio_{ep['episode']}_guion.pdf"
     return f"episodio_{ep['episode']}_{slug(ep['title'])}_guion.pdf"
 
 data = json.load(open('script_data.json', encoding='utf-8'))
