@@ -55,17 +55,6 @@ function buildPdf(ep) {
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   // ---- Encabezado ----
-  if (ep.day) {
-    doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
-      .text('Asamblea Regional 2026 · “Felices para siempre”', { align: 'center' });
-    doc.moveDown(0.2);
-    doc.fillColor(COLOR_ACCENT).font('Helvetica-Bold').fontSize(12)
-      .text(`Producción audiovisual — ${ep.day}`, { align: 'center' });
-  } else {
-    doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
-      .text('Las buenas noticias según Jesús', { align: 'center' });
-  }
-  doc.moveDown(0.6);
   doc.fillColor(COLOR_TITLE).font('Helvetica-Bold').fontSize(20)
     .text(ep.series || '', { align: 'center' });
   doc.moveDown(0.2);
