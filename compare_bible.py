@@ -540,6 +540,8 @@ def _scene_diff_entry(sc, extra_pool=None):
     return {
         "description": sc["description"],
         "references": sc.get("references", ""),
+        "timeStart": sc.get("timeStart"),
+        "timeEnd": sc.get("timeEnd"),
         "usedRefs": [l for l in used if l],
         "skippedRefs": [l for l in skipped if l],
         "tokens": tokens,

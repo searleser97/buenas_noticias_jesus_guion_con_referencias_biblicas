@@ -102,6 +102,8 @@ async function main() {
       scenesOut.push({
         description: scene.description,
         references: scene.references,
+        timeStart: scene.timeStart || null,
+        timeEnd: scene.timeEnd || null,
         refs: refsOut,
         bibleText,
         scriptText,

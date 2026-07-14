@@ -24,6 +24,26 @@ function slug(s) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '').toLowerCase();
 }
 
+// "00:01:23" -> "1:23" ; "01:02:03" -> "1:02:03". Quita horas/minutos ceros.
+function fmtTime(t) {
+  if (!t) return null;
+  const p = String(t).split(':').map(Number);
+  let h = 0, m = 0, s = 0;
+  if (p.length === 3) [h, m, s] = p;
+  else if (p.length === 2) [m, s] = p;
+  else [s] = p;
+  const ss = String(s).padStart(2, '0');
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+  return `${m}:${ss}`;
+}
+
+function fmtRange(start, end) {
+  const a = fmtTime(start), b = fmtTime(end);
+  if (!a && !b) return null;
+  if (a && b) return `${a}–${b}`;
+  return a || b;
+}
+
 function buildPdf(ep) {
   const fileName = `episodio_${ep.episode}_${slug(ep.title)}_guion.pdf`;
   const filePath = path.join(OUT_DIR, fileName);
@@ -85,6 +105,13 @@ function buildPdf(ep) {
     doc.fillColor(COLOR_SCENE).font('Helvetica-Bold').fontSize(13)
       .text(scene.description, { align: 'left' });
     doc.moveDown(0.15);
+
+    const timeRange = fmtRange(scene.timeStart, scene.timeEnd);
+    if (timeRange) {
+      doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(COLOR_MUTED)
+        .text(`Minuto ${timeRange}`, { align: 'left' });
+      doc.moveDown(0.1);
+    }
 
     if (scene.references) {
       doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLOR_ACCENT)
