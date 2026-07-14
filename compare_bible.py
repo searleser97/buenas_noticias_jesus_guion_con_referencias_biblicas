@@ -107,12 +107,12 @@ def build_scene_diff(script_text, refs):
       del   -> palabra del texto bíblico que el guion NO dice (rojo)
       add   -> palabra que el guion AÑADE (ausente del relato base, verde)
 
-    El texto base nunca se pierde: cada palabra bíblica aparece (negra o roja).
-    Las palabras del guion que reordenan texto ya presente en la base no se
-    duplican; solo se marcan en verde las genuinamente añadidas.
+    El texto base nunca se pierde: cada palabra bíblica aparece (negra si el
+    guion la dice, roja tachada si la omite). Las palabras que el guion añade
+    aparecen en verde, en estilo control-de-cambios (sustituciones = bíblico
+    rojo seguido del guion verde).
     """
     s_raw, s_norm = tokenize(script_text)
-    s_set = set(s_norm)
 
     base_refs, other_refs = select_base_account(s_norm, refs)
     used_labels = [r.get("label", "").strip() for r in base_refs]
@@ -141,7 +141,6 @@ def build_scene_diff(script_text, refs):
             b_raw.append(w)
             b_norm.append(n)
             b_vid.append(vid)
-    b_set = set(b_norm)
 
     sm = SequenceMatcher(a=b_norm, b=s_norm, autojunk=False)
     raw_tokens = []
@@ -150,22 +149,19 @@ def build_scene_diff(script_text, refs):
             for k in range(i2 - i1):
                 raw_tokens.append({"t": "eq", "w": b_raw[i1 + k], "vid": b_vid[i1 + k]})
         elif tag == "delete":
+            # Palabra bíblica que el guion no dice aquí -> rojo tachado.
             for i in range(i1, i2):
-                # Palabra bíblica: negra si el guion la dice en otro punto,
-                # roja si el guion no la pronuncia en absoluto.
-                t = "eq" if b_norm[i] in s_set else "del"
-                raw_tokens.append({"t": t, "w": b_raw[i], "vid": b_vid[i]})
+                raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
         elif tag == "insert":
+            # Palabra que el guion añade -> verde.
             for j in range(j1, j2):
-                if s_norm[j] not in b_set:
-                    raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
+                raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
         elif tag == "replace":
+            # Sustitución: primero lo bíblico (rojo), luego lo del guion (verde).
             for i in range(i1, i2):
-                t = "eq" if b_norm[i] in s_set else "del"
-                raw_tokens.append({"t": t, "w": b_raw[i], "vid": b_vid[i]})
+                raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
             for j in range(j1, j2):
-                if s_norm[j] not in b_set:
-                    raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
+                raw_tokens.append({"t": "add", "w": s_raw[j], "vid": None})
 
     # Inserta marcadores de versículo/libro al cambiar la procedencia.
     tokens = []
