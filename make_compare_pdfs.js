@@ -148,7 +148,7 @@ function buildPdf(ep) {
         doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
       }
       // Espacio vertical extra al inicio/fin de cada bloque añadido (verde).
-      if (brk) doc.moveDown(0.22);
+      if (brk) doc.moveDown(0.4);
     }
     doc.moveDown(0.5);
   }
