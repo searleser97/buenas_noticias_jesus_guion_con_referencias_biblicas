@@ -103,8 +103,19 @@ async function scrapeDay(page, day) {
 // Descarga y limpia todos los versículos de un capítulo. Devuelve { numVerso: texto }
 async function scrapeChapter(page, slug, chapter) {
   const url = `https://www.jw.org/es/biblioteca/biblia/biblia-estudio/libros/${encodeURIComponent(slug)}/${chapter}/`;
-  await page.goto(url, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1500);
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForSelector('span.verse', { timeout: 30000 });
+      await page.waitForTimeout(800);
+      break;
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      console.log(`    reintento ${attempt}/${maxAttempts - 1} (${slug} ${chapter}): ${err.name}`);
+      await page.waitForTimeout(2000 * attempt);
+    }
+  }
   return page.evaluate(() => {
     const verses = {};
     document.querySelectorAll('span.verse').forEach(sp => {

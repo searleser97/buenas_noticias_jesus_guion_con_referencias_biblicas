@@ -197,9 +197,8 @@ function cuesToParagraphs(cues, gapThreshold = 2.0) {
 
 async function main() {
   // Episodios a procesar: por CLI (p. ej. `node extract_scripts.mjs 1 2 3`),
-  // o los de la Asamblea 2026 (4, 5, 6) por defecto.
+  // o TODOS los episodios de la serie por defecto.
   const argEps = process.argv.slice(2).map(Number).filter(n => Number.isInteger(n) && n > 0);
-  const selected = argEps.length ? argEps : [4, 5, 6];
 
   console.log('Consultando subtitulos oficiales...');
   const byTrack = await fetchSubtitleMap();
@@ -211,6 +210,10 @@ async function main() {
   console.log('Descubriendo guias de episodios...');
   const guides = await discoverGuides(page);
   const byEp = new Map(guides.map(g => [g.episode, g]));
+
+  // Sin argumentos: procesar todos los episodios descubiertos en el indice.
+  const selected = argEps.length ? argEps : guides.map(g => g.episode);
+  console.log(`Episodios a procesar: ${selected.join(', ')}`);
 
   const out = [];
   for (const epNum of selected) {

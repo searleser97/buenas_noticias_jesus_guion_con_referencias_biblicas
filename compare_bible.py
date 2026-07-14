@@ -345,13 +345,9 @@ def main():
 
     diff_out = []
     for movie in data:
-        md, overall, n_diffs = render_movie_md(movie)
-        slug = slugify(movie["title"])
-        fname = f"output/episodio_{movie['episode']}_{slug}_comparacion.md"
-        with open(fname, "w", encoding="utf-8") as f:
-            f.write(md)
+        _, overall, n_diffs = render_movie_md(movie)
         print(f"Episodio {movie['episode']}: cobertura {overall*100:.1f}%, "
-              f"{n_diffs} escenas con diferencias -> {fname}")
+              f"{n_diffs} escenas con diferencias")
         diff_out.append({
             "episode": movie["episode"],
             "day": movie.get("day"),

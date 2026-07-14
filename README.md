@@ -62,9 +62,8 @@ cada video (no se transcribe el audio), por lo que el texto es **exacto**:
 
 3. **`compare_bible.py`** alinea, palabra por palabra, el guion contra la Escritura
    referenciada. Cuando una escena se basa en varios relatos paralelos, selecciona
-   el pasaje —o los pasajes— que más se asemejan a los subtítulos. Genera
-   `compare_diff.json` y un reporte Markdown por película
-   (`episodio_N_titulo_comparacion.md`) con las palabras añadidas por el film.
+   el pasaje —o los pasajes— que más se asemejan a los subtítulos, y guarda el diff
+   por escena en `compare_diff.json`.
 
 4. **`make_compare_pdfs.js`** renderiza el PDF del guion por película, con el mismo
    estilo que los PDFs de textos bíblicos:
@@ -80,8 +79,11 @@ npm run verify:scripts   # verifica el guion contra los subtítulos oficiales
 ```
 
 O por pasos: `npm run extract:scripts` (-> `script_data.json`), `npm run guion:data`
-(-> `bible_scenes.json` + `compare_diff.json` + reportes MD) y `npm run pdf:guion`
+(-> `bible_scenes.json` + `compare_diff.json`) y `npm run pdf:guion`
 (-> `output/*_guion.pdf`).
+
+Sin argumentos, `extract_scripts.mjs` procesa **todos** los episodios que descubre
+en el índice oficial.
 
 ### Otros episodios de la serie
 
@@ -97,14 +99,10 @@ npm run pdf:guion                # -> output/episodio_1_*_guion.pdf, etc.
 Todos los PDFs siguen el mismo formato de nombre:
 `episodio_N_titulo.pdf` (textos bíblicos) y `episodio_N_titulo_guion.pdf` (guion).
 
-### Verificación y reportes
+### Verificación
 
 - `npm run verify:scripts` — comprueba que el guion coincide **palabra por palabra**
   con los subtítulos VTT de origen.
-- Los reportes `episodio_N_titulo_comparacion.md` detallan, por escena, la cobertura
-  del guion frente a la Escritura y las palabras que **no** provienen de ningún
-  versículo referenciado (diálogo ambiental dramatizado: gritos de la multitud,
-  nombres, interjecciones, conectores).
 
 
 ## Uso
