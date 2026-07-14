@@ -3,35 +3,23 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { newContext } from './extract.js';
 
-// Metadatos de los 3 episodios que se presentan en la asamblea 2026.
-// El número de episodio coincide con el número de "track" en la API de medios (pub=gnj).
-const EPISODES = [
-  {
-    episode: 4, day: 'Viernes', daySlug: 'viernes',
-    title: 'Para eso he venido',
-    guide: 'https://www.jw.org/es/biblioteca/%C3%ADndices/guia-videos-buenas-noticias-segun-jesus/Para-eso-he-venido-Gu%C3%ADa-de-videos/',
-    vtt: 'vtt/ep4.vtt',
-  },
-  {
-    episode: 5, day: 'Sábado', daySlug: 'sabado',
-    title: 'Impactados con su manera de enseñar',
-    guide: 'https://www.jw.org/es/biblioteca/%C3%ADndices/guia-videos-buenas-noticias-segun-jesus/Impactados-con-su-manera-de-ense%C3%B1ar-Gu%C3%ADa-de-videos/',
-    vtt: 'vtt/ep5.vtt',
-  },
-  {
-    episode: 6, day: 'Domingo', daySlug: 'domingo',
-    title: '¿Eres tú el que tiene que venir?',
-    guide: 'https://www.jw.org/es/biblioteca/%C3%ADndices/guia-videos-buenas-noticias-segun-jesus/Eres-t%C3%BA-el-que-tiene-que-venir-Gu%C3%ADa-de-videos/',
-    vtt: 'vtt/ep6.vtt',
-  },
-];
+// Serie "Las buenas noticias segun Jesus" (pub=gnj). El numero de episodio
+// coincide con el numero de "track" en la API de medios.
+// Los episodios 4, 5 y 6 son las peliculas de la Asamblea Regional 2026.
+const ASSEMBLY = {
+  4: { day: 'Viernes', daySlug: 'viernes', fileIndex: 1 },
+  5: { day: 'Sábado', daySlug: 'sabado', fileIndex: 2 },
+  6: { day: 'Domingo', daySlug: 'domingo', fileIndex: 3 },
+};
 
+const INDEX_URL = 'https://www.jw.org/es/biblioteca/%C3%ADndices/guia-videos-buenas-noticias-segun-jesus/';
 const MEDIA_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const PUBMEDIA = 'https://b.jw-cdn.org/apis/pub-media/GETPUBMEDIALINKS?output=json&pub=gnj&fileformat=mp4&alllangs=0&track=&langwritten=S&txtCMSLang=S';
 
-// Descarga los subtitulos VTT oficiales de cada episodio desde la API de medios de jw.org.
-async function downloadVtts() {
-  fs.mkdirSync('vtt', { recursive: true });
+const vttPath = (ep) => `vtt/ep${ep}.vtt`;
+
+// Consulta la API de medios y devuelve un Map track -> URL del subtitulo VTT.
+async function fetchSubtitleMap() {
   const res = await fetch(PUBMEDIA, { headers: { 'User-Agent': MEDIA_UA } });
   if (!res.ok) throw new Error(`API de medios respondio ${res.status}`);
   const j = await res.json();
@@ -41,15 +29,42 @@ async function downloadVtts() {
   for (const x of files[fmt]) {
     if (!byTrack.has(x.track) && x.subtitles && x.subtitles.url) byTrack.set(x.track, x.subtitles.url);
   }
-  for (const ep of EPISODES) {
-    if (fs.existsSync(ep.vtt)) { console.log(`  ${ep.vtt} ya existe`); continue; }
-    const url = byTrack.get(ep.episode);
-    if (!url) throw new Error(`No hay subtitulos para el episodio ${ep.episode}`);
-    const r = await fetch(url, { headers: { 'User-Agent': MEDIA_UA } });
-    if (!r.ok) throw new Error(`Descarga VTT ep${ep.episode} respondio ${r.status}`);
-    fs.writeFileSync(ep.vtt, await r.text(), 'utf8');
-    console.log(`  descargado ${ep.vtt}`);
-  }
+  return byTrack;
+}
+
+// Descarga (si no existe) el VTT de un episodio concreto.
+async function downloadVtt(byTrack, ep) {
+  const dest = vttPath(ep);
+  if (fs.existsSync(dest)) { console.log(`  ${dest} ya existe`); return dest; }
+  fs.mkdirSync('vtt', { recursive: true });
+  const url = byTrack.get(ep);
+  if (!url) throw new Error(`No hay subtitulos para el episodio ${ep}`);
+  const r = await fetch(url, { headers: { 'User-Agent': MEDIA_UA } });
+  if (!r.ok) throw new Error(`Descarga VTT ep${ep} respondio ${r.status}`);
+  fs.writeFileSync(dest, await r.text(), 'utf8');
+  console.log(`  descargado ${dest}`);
+  return dest;
+}
+
+// Lee la pagina indice y devuelve las guias de cada episodio en orden.
+async function discoverGuides(page) {
+  await page.goto(INDEX_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForTimeout(4000);
+  const guides = await page.evaluate(() => {
+    const byHref = new Map();
+    for (const a of document.querySelectorAll('a')) {
+      const href = a.href || '';
+      if (!/guia-videos-buenas-noticias-segun-jesus\/.+-videos\/?$/i.test(href)) continue;
+      const title = a.textContent.replace(/\s+/g, ' ').trim();
+      // Cada episodio tiene 2 anclas (imagen sin texto + titulo); nos quedamos con el texto.
+      const prev = byHref.get(href);
+      if (!prev) byHref.set(href, { title, url: href });
+      else if (title.length > prev.title.length) prev.title = title;
+    }
+    return [...byHref.values()];
+  });
+  // El indice lista los episodios en orden (EPISODIO 1..N).
+  return guides.map((g, i) => ({ ...g, episode: i + 1 }));
 }
 
 const ABBR = {
@@ -77,11 +92,17 @@ function tsToSeconds(t) {
   return s;
 }
 
-async function scrapeGuide(page, ep) {
-  await page.goto(ep.guide, { waitUntil: 'domcontentloaded', timeout: 60000 });
+async function scrapeGuide(page, guideUrl) {
+  await page.goto(guideUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForSelector('a[data-targetverses]', { timeout: 30000 });
   await page.waitForTimeout(1500);
   return page.evaluate(() => {
+    // Numero de episodio real segun el lank del video (pub-gnj_N_VIDEO).
+    let episode = null;
+    for (const a of document.querySelectorAll('a[href*="lank=pub-gnj_"]')) {
+      const m = a.getAttribute('href').match(/lank=pub-gnj_(\d+)_VIDEO/);
+      if (m) { episode = parseInt(m[1], 10); break; }
+    }
     const scenes = [];
     // Cada escena: un <p> con <strong>desc</strong> (<a ts=..>gnj N ..</a>) seguido de <p> con jsBibleLink
     const descPs = [...document.querySelectorAll('p')].filter(p => {
@@ -93,13 +114,10 @@ async function scrapeGuide(page, ep) {
       const tsA = p.querySelector('a[href*="ts="]');
       const href = tsA.getAttribute('href');
       const tsm = href.match(/ts=([\d:.]+)-([\d:.]+)/);
-      // Buscar el siguiente <p> con enlaces bíblicos
-      let refsText = '';
-      let el = p.parentElement;
       // subir hasta el bloque de escena y buscar los enlaces bíblicos dentro
       let block = p.closest('.dc-columns') || p.parentElement.parentElement;
       const bibleLinks = block ? [...block.querySelectorAll('a[data-targetverses]')] : [];
-      refsText = bibleLinks.map(a => a.textContent.replace(/\s+/g, ' ').trim()).join(' ')
+      const refsText = bibleLinks.map(a => a.textContent.replace(/\s+/g, ' ').trim()).join(' ')
         .replace(/;\s*$/, '').trim();
       scenes.push({
         description: strong.textContent.replace(/\s+/g, ' ').trim(),
@@ -109,7 +127,7 @@ async function scrapeGuide(page, ep) {
         refs: bibleLinks.map(a => ({ label: a.textContent.replace(/\s+/g, ' ').trim(), tv: a.getAttribute('data-targetverses') })),
       });
     }
-    return scenes;
+    return { episode, scenes };
   });
 }
 
@@ -178,21 +196,40 @@ function cuesToParagraphs(cues, gapThreshold = 2.0) {
 }
 
 async function main() {
-  console.log('Descargando subtitulos VTT oficiales...');
-  await downloadVtts();
+  // Episodios a procesar: por CLI (p. ej. `node extract_scripts.mjs 1 2 3`),
+  // o los de la Asamblea 2026 (4, 5, 6) por defecto.
+  const argEps = process.argv.slice(2).map(Number).filter(n => Number.isInteger(n) && n > 0);
+  const selected = argEps.length ? argEps : [4, 5, 6];
+
+  console.log('Consultando subtitulos oficiales...');
+  const byTrack = await fetchSubtitleMap();
+
   const browser = await chromium.launch();
   const context = await newContext(browser);
   const page = await context.newPage();
+
+  console.log('Descubriendo guias de episodios...');
+  const guides = await discoverGuides(page);
+  const byEp = new Map(guides.map(g => [g.episode, g]));
+
   const out = [];
-  for (const ep of EPISODES) {
-    console.log(`Episodio ${ep.episode}: extrayendo guía...`);
-    const scenes = await scrapeGuide(page, ep);
+  for (const epNum of selected) {
+    const guide = byEp.get(epNum);
+    if (!guide) { console.log(`Episodio ${epNum}: no encontrado en el indice, se omite.`); continue; }
+    console.log(`Episodio ${epNum} (${guide.title}): extrayendo guia...`);
+    const { episode: lankEp, scenes } = await scrapeGuide(page, guide.url);
+    const episode = lankEp || epNum;
+    if (lankEp && lankEp !== epNum) {
+      console.log(`  aviso: el indice sugeria ${epNum} pero el video es el episodio ${lankEp}; se usa ${lankEp}.`);
+    }
+    await downloadVtt(byTrack, episode);
+
     for (const s of scenes) {
       s.tsStart = s.tsStartRaw ? tsToSeconds(s.tsStartRaw) : 0;
       s.tsEnd = s.tsEndRaw ? tsToSeconds(s.tsEndRaw) : 0;
       s.refsText = expandRefs(s.refsText);
     }
-    const cues = parseVtt(ep.vtt);
+    const cues = parseVtt(vttPath(episode));
     assignCues(scenes, cues);
     const outScenes = scenes.map(s => ({
       description: s.description,
@@ -202,16 +239,24 @@ async function main() {
       refs: s.refs,
       paragraphs: cuesToParagraphs(s._cues),
     }));
-    const totalCues = cues.length;
     const assigned = outScenes.reduce((n, s) => n + s.paragraphs.length, 0);
-    console.log(`  escenas: ${outScenes.length}, cues: ${totalCues}, párrafos: ${assigned}`);
+    console.log(`  escenas: ${outScenes.length}, cues: ${cues.length}, parrafos: ${assigned}`);
+
+    const asm = ASSEMBLY[episode] || {};
     out.push({
-      episode: ep.episode, day: ep.day, daySlug: ep.daySlug,
-      title: ep.title, series: `Episodio ${ep.episode}`,
-      guide: ep.guide, scenes: outScenes,
+      episode,
+      fileIndex: asm.fileIndex ?? episode,
+      day: asm.day ?? null,
+      daySlug: asm.daySlug ?? null,
+      title: guide.title.replace(/^[“"'\s]+|[”"'\s]+$/g, ''),
+      series: `Episodio ${episode}`,
+      guide: guide.url,
+      scenes: outScenes,
     });
   }
   await browser.close();
+  // Ordenar por indice de archivo para una salida estable.
+  out.sort((a, b) => a.fileIndex - b.fileIndex);
   fs.writeFileSync('script_data.json', JSON.stringify(out, null, 2), 'utf8');
   console.log('Escrito script_data.json');
 }
@@ -220,4 +265,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await main();
 }
 
-export { EPISODES, downloadVtts, scrapeGuide, parseVtt, assignCues, cuesToParagraphs, expandRefs, tsToSeconds };
+export { ASSEMBLY, fetchSubtitleMap, downloadVtt, discoverGuides, scrapeGuide, parseVtt, assignCues, cuesToParagraphs, expandRefs, tsToSeconds, vttPath };

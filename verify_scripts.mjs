@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { EPISODES, parseVtt } from './extract_scripts.mjs';
+import { parseVtt, vttPath } from './extract_scripts.mjs';
 
 // Tokeniza a palabras (minúsculas, sin puntuación) para comparar palabras + orden.
 function tokens(str) {
@@ -30,9 +30,8 @@ function vttWords(cues) {
 const data = JSON.parse(fs.readFileSync('script_data.json', 'utf8'));
 let ok = true;
 
-for (const ep of EPISODES) {
-  const epData = data.find(d => d.episode === ep.episode);
-  const cues = parseVtt(ep.vtt);
+for (const epData of data) {
+  const cues = parseVtt(vttPath(epData.episode));
   const srcWords = vttWords(cues);
   const pdfWords = [];
   for (const scene of epData.scenes) {
@@ -46,7 +45,7 @@ for (const ep of EPISODES) {
   }
 
   const same = mismatch === -1 && srcWords.length === pdfWords.length;
-  console.log(`Episodio ${ep.episode}: VTT=${srcWords.length} palabras, guion=${pdfWords.length} palabras -> ${same ? 'OK (coincidencia exacta)' : 'DIFERENCIA'}`);
+  console.log(`Episodio ${epData.episode}: VTT=${srcWords.length} palabras, guion=${pdfWords.length} palabras -> ${same ? 'OK (coincidencia exacta)' : 'DIFERENCIA'}`);
   if (!same) {
     ok = false;
     if (mismatch >= 0) {

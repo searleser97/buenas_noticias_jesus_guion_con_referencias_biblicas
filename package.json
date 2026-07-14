@@ -12,7 +12,8 @@
     "extract:scripts": "node extract_scripts.mjs",
     "pdf:scripts": "node make_script_pdfs.js",
     "scripts": "node extract_scripts.mjs && node make_script_pdfs.js",
-    "verify:scripts": "node verify_scripts.mjs"
+    "verify:scripts": "node verify_scripts.mjs",
+    "verify:scripts:pdf": "python verify_script_pdf.py"
   },
   "keywords": [],
   "author": "",

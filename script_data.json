@@ -1,6 +1,7 @@
 [
   {
     "episode": 4,
+    "fileIndex": 1,
     "day": "Viernes",
     "daySlug": "viernes",
     "title": "Para eso he venido",
@@ -564,6 +565,7 @@
   },
   {
     "episode": 5,
+    "fileIndex": 2,
     "day": "Sábado",
     "daySlug": "sabado",
     "title": "Impactados con su manera de enseñar",
@@ -953,6 +955,7 @@
   },
   {
     "episode": 6,
+    "fileIndex": 3,
     "day": "Domingo",
     "daySlug": "domingo",
     "title": "¿Eres tú el que tiene que venir?",

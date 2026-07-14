@@ -72,6 +72,27 @@ npm run verify:scripts   # verifica el guion contra los subtítulos oficiales
 O por pasos: `npm run extract:scripts` (-> `script_data.json`) y luego
 `npm run pdf:scripts` (-> `output/*_guion.pdf`).
 
+### Otros episodios de la serie
+
+El extractor descubre las guías desde el índice oficial y funciona con **cualquier
+episodio** de la serie (no solo los de la asamblea). Indica los números como
+argumentos:
+
+```bash
+node extract_scripts.mjs 1 2 3   # genera script_data.json para los episodios 1, 2 y 3
+npm run pdf:scripts              # -> output/episodio_1_*.pdf, etc.
+```
+
+Los episodios 4, 5 y 6 (la asamblea 2026) llevan el día en el nombre del archivo
+(`1_viernes_episodio_4_guion.pdf`); el resto usa `episodio_N_titulo_guion.pdf`.
+
+### Verificación
+
+- `npm run verify:scripts` — comprueba que el guion coincide **palabra por palabra**
+  con los subtítulos VTT de origen.
+- `npm run verify:scripts:pdf` — comprueba que **todas** esas palabras aparecen, en
+  orden, en los PDFs ya generados.
+
 ## Uso
 
 ```bash

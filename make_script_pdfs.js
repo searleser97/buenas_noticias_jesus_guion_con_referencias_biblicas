@@ -17,8 +17,14 @@ const COLOR_MUTED = '#666666';
 const TEXT_SIZE = 11;
 const LINE_GAP = 2;
 
+function slug(s) {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '').toLowerCase();
+}
+
 function buildPdf(ep, index) {
-  const fileName = `${index}_${ep.daySlug}_episodio_${ep.episode}_guion.pdf`;
+  const fileName = ep.daySlug
+    ? `${ep.fileIndex ?? index}_${ep.daySlug}_episodio_${ep.episode}_guion.pdf`
+    : `episodio_${ep.episode}_${slug(ep.title)}_guion.pdf`;
   const filePath = path.join(OUT_DIR, fileName);
   const doc = new PDFDocument({ size: 'A4', margins: { top: 60, bottom: 60, left: 60, right: 60 }, bufferPages: true });
   const stream = fs.createWriteStream(filePath);
@@ -27,11 +33,16 @@ function buildPdf(ep, index) {
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   // ---- Encabezado ----
-  doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
-    .text('Asamblea Regional 2026 · “Felices para siempre”', { align: 'center' });
-  doc.moveDown(0.2);
-  doc.fillColor(COLOR_ACCENT).font('Helvetica-Bold').fontSize(12)
-    .text(`Producción audiovisual — ${ep.day}`, { align: 'center' });
+  if (ep.day) {
+    doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
+      .text('Asamblea Regional 2026 · “Felices para siempre”', { align: 'center' });
+    doc.moveDown(0.2);
+    doc.fillColor(COLOR_ACCENT).font('Helvetica-Bold').fontSize(12)
+      .text(`Producción audiovisual — ${ep.day}`, { align: 'center' });
+  } else {
+    doc.fillColor(COLOR_MUTED).font('Helvetica').fontSize(11)
+      .text('Las buenas noticias según Jesús', { align: 'center' });
+  }
   doc.moveDown(0.6);
   doc.fillColor(COLOR_TITLE).font('Helvetica-Bold').fontSize(20)
     .text(ep.series, { align: 'center' });
