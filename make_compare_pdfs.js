@@ -120,10 +120,15 @@ function buildPdf(ep) {
     doc.moveDown(0.35);
 
     // Cuerpo en formato de guion: cada oración del guion en su propia línea,
-    // con los números de versículo en azul + procedencia de libro, y el diff
-    // superpuesto (verde = añadido, rojo tachado = omitido).
-    const OPTS = { continued: true, align: 'left', lineGap: LINE_GAP };
+    // precedida de una viñeta y con sangría francesa (las líneas que se parten
+    // se alinean bajo el texto, no bajo la viñeta), con los números de
+    // versículo en azul + procedencia de libro y el diff superpuesto
+    // (verde = añadido, rojo tachado = omitido).
     doc.font('Helvetica').fontSize(TEXT_SIZE);
+    const leftX = doc.page.margins.left;
+    const HANG = 15;
+    const contentX = leftX + HANG;
+    const contentW = pageWidth - HANG;
 
     // Divide los tokens en líneas del guion (separadas por 'br').
     const lines = [[]];
@@ -133,28 +138,45 @@ function buildPdf(ep) {
     }
 
     for (const line of lines) {
-      if (line.length === 0) { doc.moveDown(0.28); continue; }
+      if (line.length === 0) continue;
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 24) doc.addPage();
+
+      const y0 = doc.y;
+      // Viñeta en el margen izquierdo.
+      doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_VERSENUM)
+        .text('•', leftX, y0, { width: HANG, continued: false });
+      doc.y = y0;
+
+      let firstFrag = true;
+      const emit = (str, opts) => {
+        if (firstFrag) {
+          firstFrag = false;
+          doc.text(str, contentX, y0, { ...opts, width: contentW });
+        } else {
+          doc.text(str, { ...opts, width: contentW });
+        }
+      };
+      const BASE = { continued: true, align: 'left', lineGap: LINE_GAP };
+
       for (let idx = 0; idx < line.length; idx++) {
         const tk = line[idx];
         const last = idx === line.length - 1;
-        // El espacio final de cada palabra cierra la línea (continued:false)
-        // cuando es el último token, para no encimar la siguiente oración.
-        const sp = { ...OPTS, strike: false, continued: !last };
+        const sp = { ...BASE, strike: false, continued: !last };
         if (tk.t === 'book') {
-          doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT).text(tk.w, OPTS);
-          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+          doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT); emit(tk.w, BASE);
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT); emit(' ', sp);
         } else if (tk.t === 'vnum') {
-          doc.font('Helvetica-Bold').fontSize(NUM_SIZE).fillColor(COLOR_VERSENUM).text(tk.w, OPTS);
-          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+          doc.font('Helvetica-Bold').fontSize(NUM_SIZE).fillColor(COLOR_VERSENUM); emit(tk.w, BASE);
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT); emit(' ', sp);
         } else {
           let color = COLOR_TEXT, font = 'Helvetica', strike = false;
           if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
           else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
-          doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
-          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+          doc.font(font).fontSize(TEXT_SIZE).fillColor(color); emit(tk.w, { ...BASE, strike });
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT); emit(' ', sp);
         }
       }
-      doc.moveDown(0.28);
+      doc.moveDown(0.45);
     }
     doc.moveDown(0.35);
   }
