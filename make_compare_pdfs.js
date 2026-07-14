@@ -71,8 +71,9 @@ function buildPdf(ep) {
   doc.fillColor(COLOR_MUTED).font('Helvetica-Oblique').fontSize(9)
     .text('El texto base es el de la Biblia (versículo por versículo), con el número de '
       + 'versículo en azul. En verde, las palabras que el guion añade; tachado en rojo, las '
-      + 'palabras bíblicas que el guion no dice. Cuando una escena tiene relatos paralelos '
-      + '(Mateo, Marcos, Lucas), se muestra solo el relato con mayor similitud con la película.',
+      + 'palabras bíblicas que el guion no dice. Cuando una escena combina varios relatos '
+      + '(Mateo, Marcos, Lucas, Juan), se mezclan en un solo texto continuo, indicando con la '
+      + 'abreviatura del libro de dónde proviene cada parte.',
       { align: 'left' });
   doc.moveDown(0.8);
 
