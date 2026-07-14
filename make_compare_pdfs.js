@@ -119,28 +119,44 @@ function buildPdf(ep) {
     }
     doc.moveDown(0.35);
 
-    // Cuerpo: versículos con números en azul + procedencia de libro, y el
-    // diff superpuesto (verde = añadido, rojo tachado = omitido).
-    const OPTS = { continued: true, align: 'justify', lineGap: LINE_GAP };
+    // Cuerpo en formato de guion: cada oración del guion en su propia línea,
+    // con los números de versículo en azul + procedencia de libro, y el diff
+    // superpuesto (verde = añadido, rojo tachado = omitido).
+    const OPTS = { continued: true, align: 'left', lineGap: LINE_GAP };
     doc.font('Helvetica').fontSize(TEXT_SIZE);
-    const toks = scene.tokens;
-    for (const tk of toks) {
-      if (tk.t === 'book') {
-        doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT).text(tk.w, OPTS);
-        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', OPTS);
-      } else if (tk.t === 'vnum') {
-        doc.font('Helvetica-Bold').fontSize(NUM_SIZE).fillColor(COLOR_VERSENUM).text(tk.w, OPTS);
-        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', OPTS);
-      } else {
-        let color = COLOR_TEXT, font = 'Helvetica', strike = false;
-        if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
-        else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
-        doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
-        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', { ...OPTS, strike: false });
-      }
+
+    // Divide los tokens en líneas del guion (separadas por 'br').
+    const lines = [[]];
+    for (const tk of scene.tokens) {
+      if (tk.t === 'br') lines.push([]);
+      else lines[lines.length - 1].push(tk);
     }
-    doc.text('', { continued: false });
-    doc.moveDown(0.6);
+
+    for (const line of lines) {
+      if (line.length === 0) { doc.moveDown(0.28); continue; }
+      for (let idx = 0; idx < line.length; idx++) {
+        const tk = line[idx];
+        const last = idx === line.length - 1;
+        // El espacio final de cada palabra cierra la línea (continued:false)
+        // cuando es el último token, para no encimar la siguiente oración.
+        const sp = { ...OPTS, strike: false, continued: !last };
+        if (tk.t === 'book') {
+          doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT).text(tk.w, OPTS);
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+        } else if (tk.t === 'vnum') {
+          doc.font('Helvetica-Bold').fontSize(NUM_SIZE).fillColor(COLOR_VERSENUM).text(tk.w, OPTS);
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+        } else {
+          let color = COLOR_TEXT, font = 'Helvetica', strike = false;
+          if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
+          else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
+          doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
+          doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
+        }
+      }
+      doc.moveDown(0.28);
+    }
+    doc.moveDown(0.35);
   }
 
   // ---- Pie de página ----

@@ -210,7 +210,7 @@ def _abbrev_from_label(label):
     return m.group(1).strip() if m else (label or "").strip()
 
 
-def build_scene_diff(script_text, refs, extra_pool=None):
+def build_scene_diff(script_text, refs, extra_pool=None, script_paragraphs=None):
     """Token stream para el PDF, con el TEXTO BÍBLICO como base.
 
     La base MEZCLA los relatos referenciados (select_spine): verso a verso se
@@ -222,22 +222,39 @@ def build_scene_diff(script_text, refs, extra_pool=None):
       eq    -> palabra del texto bíblico (también dicha por el guion)
       del   -> palabra del texto bíblico que el guion NO dice (rojo tachado)
       add   -> palabra que el guion AÑADE (verde)
+      br    -> salto de línea entre oraciones del guion (formato de guion)
 
     extra_pool: versículos del resto de la película, para incorporar citas que
     la Guía ubica en otra escena (así no se marcan como añadidas si sí están
     en la Biblia). Ver select_spine.
 
+    script_paragraphs: lista de oraciones/líneas del guion. Cada una es una
+    entrada; al cambiar de línea se emite un token 'br' para que el PDF muestre
+    el guion línea por línea (más fácil ver quién dice qué).
+
     El texto base nunca se pierde: cada palabra bíblica aparece (negra si el
     guion la dice, roja tachada si la omite). Las sustituciones se muestran
     como bíblico (rojo) seguido del guion (verde).
     """
-    s_raw, s_norm = tokenize(script_text)
+    # Tokeniza por línea del guion para saber a qué oración pertenece cada
+    # palabra (y poder cortar en 'br'). Si no hay líneas, todo es una sola.
+    paras = script_paragraphs if script_paragraphs else [script_text]
+    s_raw, s_norm, s_para = [], [], []
+    for pi, para in enumerate(paras):
+        pr, pn = tokenize(para)
+        s_raw += pr
+        s_norm += pn
+        s_para += [pi] * len(pr)
 
     verses, used_labels, skipped_labels = select_spine(s_norm, refs, extra_pool)
     if not verses:
-        # Sin base: todo el guion es "añadido".
-        return ([{"t": "add", "w": w} for w in s_raw],
-                used_labels, skipped_labels)
+        # Sin base: todo el guion es "añadido" (respetando las líneas).
+        toks = []
+        for j, w in enumerate(s_raw):
+            if j > 0 and s_para[j] != s_para[j - 1]:
+                toks.append({"t": "br"})
+            toks.append({"t": "add", "w": w})
+        return toks, used_labels, skipped_labels
 
     # --- Propiedad por token -------------------------------------------------
     # Cada palabra del guion se asigna al versículo que la "dice" de forma más
@@ -284,6 +301,9 @@ def build_scene_diff(script_text, refs, extra_pool=None):
         cur_book, cur_chapter = v["abbrev"], v["chapter"]
 
     for j in range(n):
+        # Salto de línea entre oraciones del guion (formato de guion).
+        if j > 0 and s_para[j] != s_para[j - 1]:
+            tokens.append({"t": "br"})
         vidx = own_v[j]
         if vidx is None:
             # Palabra que el guion añade (no está en ningún versículo).
@@ -536,7 +556,8 @@ def main():
 
 def _scene_diff_entry(sc, extra_pool=None):
     tokens, used, skipped = build_scene_diff(
-        sc["scriptText"], sc.get("refs", []), extra_pool)
+        sc["scriptText"], sc.get("refs", []), extra_pool,
+        sc.get("scriptParagraphs"))
     return {
         "description": sc["description"],
         "references": sc.get("references", ""),

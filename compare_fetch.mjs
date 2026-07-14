@@ -99,6 +99,9 @@ async function main() {
         .replace(/\s+/g, ' ')
         .trim();
       const scriptText = (scene.paragraphs || []).join(' ').replace(/\s+/g, ' ').trim();
+      const scriptParagraphs = (scene.paragraphs || [])
+        .map(p => p.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
       scenesOut.push({
         description: scene.description,
         references: scene.references,
@@ -107,6 +110,7 @@ async function main() {
         refs: refsOut,
         bibleText,
         scriptText,
+        scriptParagraphs,
       });
     }
     out.push({
