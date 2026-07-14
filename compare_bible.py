@@ -88,49 +88,90 @@ def select_spine(script_norm, refs):
     return selected
 
 
+ABBR_FULL = {"Mt": "Mateo", "Mr": "Marcos", "Lu": "Lucas", "Jn": "Juan"}
+
+
+def _abbrev_from_label(label):
+    m = re.match(r"\s*([1-3]?\s?[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)", label or "")
+    return m.group(1).strip() if m else (label or "").strip()
+
+
 def build_scene_diff(script_text, refs):
-    """Token stream para el PDF: eq=igual, add=añadido por el guion,
-    del=omitido de la Escritura representada. Los pasajes paralelos que la
-    película no siguió no se consideran (no generan 'del')."""
+    """Token stream para el PDF con procedencia bíblica.
+
+    Solo se compara contra los pasajes que la película realmente usa
+    (select_spine). Cada token de texto lleva, cuando procede, el versículo
+    del que viene, y se insertan marcadores de número de versículo y de libro
+    (abreviado) cuando cambia la fuente. Tipos de token:
+      book  -> nombre abreviado del libro (cambio de libro)
+      vnum  -> número de versículo (o 'cap:versículo')
+      eq    -> palabra igual al texto bíblico
+      add   -> palabra añadida por el guion (ausente de la Escritura)
+      del   -> palabra de la Escritura representada que la película no narra
+    """
     s_raw, s_norm = tokenize(script_text)
     s_set = set(s_norm)
-    # Verde: una palabra del guion es 'añadida' solo si no aparece en NINGÚN
-    # versículo referenciado (ni siquiera en un relato paralelo).
     union_set = set()
     for r in refs:
         union_set |= set(_ref_tokens(r)[1])
 
     selected = select_spine(s_norm, refs)
-    b_raw, b_norm = [], []
+    b_raw, b_norm, b_vid = [], [], []
+    verses_meta = []  # {abbrev, chapter, num}
     used_labels, skipped_labels = [], []
     for i, r in enumerate(refs):
-        rr, rn = _ref_tokens(r)
-        if selected[i]:
-            b_raw += rr
-            b_norm += rn
-            used_labels.append(r.get("label", "").strip())
-        else:
+        if not selected[i]:
             skipped_labels.append(r.get("label", "").strip())
+            continue
+        used_labels.append(r.get("label", "").strip())
+        abbrev = _abbrev_from_label(r.get("label", ""))
+        for v in r.get("verses", []):
+            vr, vn = tokenize(v.get("text", ""))
+            vid = len(verses_meta)
+            verses_meta.append({"abbrev": abbrev, "chapter": v.get("chapter"), "num": v.get("num")})
+            for w, n in zip(vr, vn):
+                b_raw.append(w)
+                b_norm.append(n)
+                b_vid.append(vid)
 
     sm = SequenceMatcher(a=b_norm, b=s_norm, autojunk=False)
-    tokens = []
+    raw_tokens = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
-            for j in range(j1, j2):
-                tokens.append({"t": "eq", "w": s_raw[j]})
+            for k in range(i2 - i1):
+                raw_tokens.append({"t": "eq", "w": s_raw[j1 + k], "vid": b_vid[i1 + k]})
         elif tag == "insert":
             for j in range(j1, j2):
-                tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j]})
+                raw_tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j], "vid": None})
         elif tag == "delete":
             for i in range(i1, i2):
                 if b_norm[i] not in s_set:
-                    tokens.append({"t": "del", "w": b_raw[i]})
+                    raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
         elif tag == "replace":
             for j in range(j1, j2):
-                tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j]})
+                raw_tokens.append({"t": "add" if s_norm[j] not in union_set else "eq", "w": s_raw[j], "vid": None})
             for i in range(i1, i2):
                 if b_norm[i] not in s_set:
-                    tokens.append({"t": "del", "w": b_raw[i]})
+                    raw_tokens.append({"t": "del", "w": b_raw[i], "vid": b_vid[i]})
+
+    # Inserta marcadores de versículo/libro al cambiar la procedencia.
+    tokens = []
+    cur_vid, cur_book = None, None
+    for tk in raw_tokens:
+        vid = tk["vid"]
+        if vid is not None and vid != cur_vid:
+            meta = verses_meta[vid]
+            prev_chapter = verses_meta[cur_vid]["chapter"] if cur_vid is not None else None
+            if meta["abbrev"] != cur_book:
+                tokens.append({"t": "book", "w": meta["abbrev"]})
+                tokens.append({"t": "vnum", "w": f'{meta["chapter"]}:{meta["num"]}'})
+            elif meta["chapter"] != prev_chapter:
+                tokens.append({"t": "vnum", "w": f'{meta["chapter"]}:{meta["num"]}'})
+            else:
+                tokens.append({"t": "vnum", "w": f'{meta["num"]}'})
+            cur_vid, cur_book = vid, meta["abbrev"]
+        tokens.append({"t": tk["t"], "w": tk["w"]})
+
     return tokens, used_labels, skipped_labels
 
 

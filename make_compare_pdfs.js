@@ -14,8 +14,10 @@ const COLOR_TEXT = '#292929';
 const COLOR_MUTED = '#666666';
 const COLOR_ADD = '#1a7f37';   // verde: añadido por el guion
 const COLOR_DEL = '#cf222e';   // rojo: omitido de la Biblia
+const COLOR_VERSENUM = '#4a6da7'; // azul jw.org para números de versículo
 
 const TEXT_SIZE = 11;
+const NUM_SIZE = 12;
 const LINE_GAP = 2;
 
 function slug(s) {
@@ -76,7 +78,7 @@ function buildPdf(ep) {
   // ---- Escenas ----
   for (const scene of ep.scenes) {
     if (doc.y > doc.page.height - 160) doc.addPage();
-    doc.moveDown(0.5);
+    doc.moveDown(1.1);
 
     doc.fillColor(COLOR_SCENE).font('Helvetica-Bold').fontSize(13)
       .text(scene.description, { align: 'left' });
@@ -88,19 +90,27 @@ function buildPdf(ep) {
     }
     doc.moveDown(0.35);
 
-    // Cuerpo: flujo de tokens con color por tipo.
-    doc.fontSize(TEXT_SIZE);
+    // Cuerpo: versículos con números en azul + procedencia de libro, y el
+    // diff superpuesto (verde = añadido, rojo tachado = omitido).
+    const OPTS = { continued: true, align: 'justify', lineGap: LINE_GAP };
+    doc.font('Helvetica').fontSize(TEXT_SIZE);
     const toks = scene.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      const tk = toks[i];
-      const last = i === toks.length - 1;
-      let color = COLOR_TEXT, font = 'Helvetica', strike = false;
-      if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
-      else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
-      doc.fillColor(color).font(font).text(tk.w, { continued: true, strike, lineGap: LINE_GAP });
-      // Separador (espacio) sin estilo: strike explícito en false para no heredarlo.
-      doc.fillColor(COLOR_TEXT).font('Helvetica').text(last ? '' : ' ', { continued: !last, strike: false, lineGap: LINE_GAP });
+    for (const tk of toks) {
+      if (tk.t === 'book') {
+        doc.font('Helvetica-Bold').fontSize(TEXT_SIZE).fillColor(COLOR_ACCENT).text(tk.w, OPTS);
+        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', OPTS);
+      } else if (tk.t === 'vnum') {
+        doc.font('Helvetica-Bold').fontSize(NUM_SIZE).fillColor(COLOR_VERSENUM).text(tk.w, OPTS);
+        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', OPTS);
+      } else {
+        let color = COLOR_TEXT, font = 'Helvetica', strike = false;
+        if (tk.t === 'add') { color = COLOR_ADD; font = 'Helvetica-Bold'; }
+        else if (tk.t === 'del') { color = COLOR_DEL; strike = true; }
+        doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
+        doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', { ...OPTS, strike: false });
+      }
     }
+    doc.text('', { continued: false });
     doc.moveDown(0.6);
   }
 
