@@ -31,6 +31,13 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 WORD_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ']+")
 
+# Token = palabra con su puntuación adjunta (signos de apertura/cierre). Así el
+# texto base conserva «¿», «?», «¡», «!», comas y puntos, mientras que la
+# normalización para alinear (norm) sigue ignorando toda la puntuación.
+_LEAD = r"[¿¡«\"'(\[\u2014\u2013\u2026]*"
+_TRAIL = r"[?!.,;:»\"')\]\u2014\u2013\u2026]*"
+TOKEN_RE = re.compile(_LEAD + r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ']+" + _TRAIL)
+
 
 def slugify(text):
     text = unicodedata.normalize("NFKD", text)
@@ -40,9 +47,14 @@ def slugify(text):
 
 
 def tokenize(text):
-    """Devuelve (originales, normalizadas) para alinear por palabra."""
-    raw = WORD_RE.findall(text or "")
-    norm = [w.lower() for w in raw]
+    """Devuelve (originales, normalizadas) para alinear por palabra.
+
+    `raw` conserva cada palabra con su puntuación adjunta (para mostrarla tal
+    cual en el PDF); `norm` es solo el núcleo de la palabra en minúsculas (para
+    emparejar guion y Biblia ignorando puntuación y mayúsculas).
+    """
+    raw = TOKEN_RE.findall(text or "")
+    norm = [WORD_RE.search(t).group(0).lower() for t in raw]
     return raw, norm
 
 
