@@ -46,46 +46,88 @@ def tokenize(text):
     return raw, norm
 
 
-def _ref_tokens(ref):
-    text = " ".join(v.get("text", "") for v in ref.get("verses", []))
-    return tokenize(text)
 
 
-def _group_refs_by_book(refs):
-    """Agrupa las referencias de una escena por libro (relato)."""
-    groups, order = {}, []
+
+def _align_verse(v_norm, s_norm):
+    """Alinea un versículo contra el guion.
+
+    Devuelve (score, matched_js, anchor) donde matched_js es el conjunto de
+    índices del guion que este versículo cubre (subsecuencia en orden), score
+    su tamaño y anchor la posición donde empieza a cubrir el guion.
+    """
+    if not v_norm or not s_norm:
+        return 0, set(), 10 ** 9
+    sm = SequenceMatcher(a=v_norm, b=s_norm, autojunk=False)
+    matched = set()
+    for block in sm.get_matching_blocks():
+        for k in range(block.size):
+            matched.add(block.b + k)
+    anchor = min(matched) if matched else 10 ** 9
+    return len(matched), matched, anchor
+
+
+def select_spine(s_norm, refs):
+    """Construye la base MEZCLANDO los relatos referenciados.
+
+    La película arma una versión armonizada: distintas partes del subtítulo
+    provienen de distintos evangelios. Aquí, para cada parte del guion se toma
+    el versículo (de cualquier libro) que mejor la cubre y se ordenan según la
+    narración, de modo que la base se lea como un solo texto continuo.
+
+    Selección voraz por puntuación: cada versículo aceptado debe aportar
+    cobertura NUEVA del guion. Así los versículos paralelos redundantes (que
+    repiten lo que otro relato ya cubrió) y los versículos que la película no
+    usa quedan fuera.
+
+    Devuelve (versículos_ordenados, used_labels, skipped_labels).
+    """
+    seen = set()
+    cands = []
+    for r in refs:
+        abbrev = _abbrev_from_label(r.get("label", ""))
+        label = r.get("label", "").strip()
+        for v in r.get("verses", []):
+            key = (abbrev, v.get("chapter"), v.get("num"))
+            if key in seen:
+                continue
+            seen.add(key)
+            vr, vn = tokenize(v.get("text", ""))
+            cands.append({"abbrev": abbrev, "chapter": v.get("chapter"),
+                          "num": v.get("num"), "raw": vr, "norm": vn,
+                          "label": label})
+
+    for c in cands:
+        c["score"], c["matched"], c["anchor"] = _align_verse(c["norm"], s_norm)
+
+    claimed = set()
+    accepted = []
+    for c in sorted(cands, key=lambda x: (-x["score"], x["anchor"])):
+        if c["score"] <= 0:
+            continue
+        new = c["matched"] - claimed
+        # Debe aportar al menos 2 palabras nuevas y no ser casi todo solapado
+        # (un versículo paralelo cuya parte útil ya cubrió otro relato se cae).
+        if len(new) < 2 or len(new) * 2 < c["score"]:
+            continue
+        claimed |= c["matched"]
+        c["anchor"] = min(c["matched"])
+        accepted.append(c)
+
+    accepted.sort(key=lambda x: (x["anchor"], x["abbrev"],
+                                 x["chapter"] or 0, x["num"] or 0))
+
+    used_labels = list(dict.fromkeys(c["label"] for c in accepted if c["label"]))
+    used_keys = {(c["abbrev"], c["chapter"], c["num"]) for c in accepted}
+    skipped_labels = []
     for r in refs:
         ab = _abbrev_from_label(r.get("label", ""))
-        if ab not in groups:
-            groups[ab] = []
-            order.append(ab)
-        groups[ab].append(r)
-    return [(ab, groups[ab]) for ab in order]
-
-
-def select_base_account(s_norm, refs):
-    """Elige el ÚNICO relato (libro) que la película sigue más de cerca.
-
-    Sin relatos paralelos: se puntúa cada libro por cuántas palabras del guion
-    explica (coincidencia en orden) y se toma el de mayor puntuación como base.
-    Devuelve (refs_base, refs_descartadas).
-    """
-    groups = _group_refs_by_book(refs)
-    if not groups:
-        return [], []
-    best_ab, best_score = groups[0][0], -1
-    for ab, grp in groups:
-        toks = []
-        for r in grp:
-            toks += _ref_tokens(r)[1]
-        sm = SequenceMatcher(a=toks, b=s_norm, autojunk=False)
-        score = sum(i2 - i1 for tag, i1, i2, _, _ in sm.get_opcodes() if tag == "equal")
-        if score > best_score:
-            best_ab, best_score = ab, score
-    base_refs, others = [], []
-    for ab, grp in groups:
-        (base_refs if ab == best_ab else others).extend(grp)
-    return base_refs, others
+        lab = r.get("label", "").strip()
+        used = any((ab, v.get("chapter"), v.get("num")) in used_keys
+                   for v in r.get("verses", []))
+        if not used and lab and lab not in skipped_labels:
+            skipped_labels.append(lab)
+    return accepted, used_labels, skipped_labels
 
 
 ABBR_FULL = {"Mt": "Mateo", "Mr": "Marcos", "Lu": "Lucas", "Jn": "Juan"}
@@ -99,39 +141,23 @@ def _abbrev_from_label(label):
 def build_scene_diff(script_text, refs):
     """Token stream para el PDF, con el TEXTO BÍBLICO como base.
 
-    Se toma un solo relato (select_base_account) y se muestra su texto
-    completo, versículo por versículo, en orden. El guion se superpone:
-      book  -> nombre abreviado del libro
+    La base MEZCLA los relatos referenciados (select_spine): verso a verso se
+    toma, de cualquier libro, el versículo que mejor cubre esa parte del guion,
+    y se ordenan según la narración para leerse como un solo texto. Sobre esa
+    base se superpone el guion en estilo control-de-cambios:
+      book  -> nombre abreviado del libro (al cambiar de procedencia)
       vnum  -> número de versículo (o 'cap:versículo')
       eq    -> palabra del texto bíblico (también dicha por el guion)
-      del   -> palabra del texto bíblico que el guion NO dice (rojo)
-      add   -> palabra que el guion AÑADE (ausente del relato base, verde)
+      del   -> palabra del texto bíblico que el guion NO dice (rojo tachado)
+      add   -> palabra que el guion AÑADE (verde)
 
     El texto base nunca se pierde: cada palabra bíblica aparece (negra si el
-    guion la dice, roja tachada si la omite). Las palabras que el guion añade
-    aparecen en verde, en estilo control-de-cambios (sustituciones = bíblico
-    rojo seguido del guion verde).
+    guion la dice, roja tachada si la omite). Las sustituciones se muestran
+    como bíblico (rojo) seguido del guion (verde).
     """
     s_raw, s_norm = tokenize(script_text)
 
-    base_refs, other_refs = select_base_account(s_norm, refs)
-    used_labels = [r.get("label", "").strip() for r in base_refs]
-    skipped_labels = [r.get("label", "").strip() for r in other_refs]
-
-    # Texto base: versículos del relato elegido, ordenados y sin duplicar.
-    seen = set()
-    verses = []  # {abbrev, chapter, num, raw, norm}
-    for r in base_refs:
-        abbrev = _abbrev_from_label(r.get("label", ""))
-        for v in r.get("verses", []):
-            key = (abbrev, v.get("chapter"), v.get("num"))
-            if key in seen:
-                continue
-            seen.add(key)
-            vr, vn = tokenize(v.get("text", ""))
-            verses.append({"abbrev": abbrev, "chapter": v.get("chapter"),
-                           "num": v.get("num"), "raw": vr, "norm": vn})
-    verses.sort(key=lambda x: (x["abbrev"], x["chapter"] or 0, x["num"] or 0))
+    verses, used_labels, skipped_labels = select_spine(s_norm, refs)
 
     b_raw, b_norm, b_vid, verses_meta = [], [], [], []
     for v in verses:
