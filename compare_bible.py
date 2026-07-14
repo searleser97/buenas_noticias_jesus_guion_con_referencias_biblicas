@@ -141,11 +141,18 @@ def select_spine(s_norm, refs, extra_pool=None):
     """
     cands = _collect_verses(refs)
     for c in cands:
-        c["score"], c["matched"], c["anchor"], _, _ = _align_verse(c["norm"], s_norm)
+        (c["score"], c["matched"], c["anchor"],
+         c["max_block"], _) = _align_verse(c["norm"], s_norm)
 
     claimed = set()
     accepted = []
-    for c in sorted(cands, key=lambda x: (-x["score"], x["anchor"])):
+    # Se prioriza el bloque verbatim CONTIGUO más largo (lo que la película
+    # realmente cita palabra por palabra y en orden), y solo luego la cobertura
+    # total. Así, entre relatos paralelos, gana el que respeta el orden del
+    # guion (p. ej. Marcos "autoridad para perdonar pecados en la tierra")
+    # sobre otro que cubre más palabras pero en distinto orden (Lucas
+    # "autoridad en la tierra para perdonar pecados").
+    for c in sorted(cands, key=lambda x: (-x["max_block"], -x["score"], x["anchor"])):
         if c["score"] <= 0:
             continue
         new = c["matched"] - claimed
