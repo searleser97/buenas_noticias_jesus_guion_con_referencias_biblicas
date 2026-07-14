@@ -133,14 +133,15 @@ function buildPdf(ep) {
 
     // Ignora los saltos de línea del guion; trabajamos en párrafo continuo.
     const toks = scene.tokens.filter((tk) => tk.t !== 'br');
-    // 'add' (añadido) y 'moved' (reubicado) rompen el párrafo a su propia línea.
-    const isSep = (tk) => tk && (tk.t === 'add' || tk.t === 'moved');
+    // Solo 'add' (añadido, verde) rompe el párrafo a su propia línea, con algo
+    // más de espacio vertical para distinguirlo. 'moved' (morado) fluye como el
+    // texto normal, sin cortes.
+    const isSep = (tk) => tk && tk.t === 'add';
 
     for (let idx = 0; idx < toks.length; idx++) {
       const tk = toks[idx];
       const last = idx === toks.length - 1;
-      // Rompe la línea al pasar de texto base a añadido/reubicado o viceversa,
-      // para que cada bloque destacado quede en su propia línea.
+      // Rompe la línea al entrar o salir de un bloque añadido (verde).
       const brk = !last && isSep(tk) !== isSep(toks[idx + 1]);
       const sp = { ...OPTS, strike: false, continued: !last && !brk };
       if (tk.t === 'book') {
@@ -157,6 +158,8 @@ function buildPdf(ep) {
         doc.font(font).fontSize(TEXT_SIZE).fillColor(color).text(tk.w, { ...OPTS, strike });
         doc.font('Helvetica').fontSize(TEXT_SIZE).fillColor(COLOR_TEXT).text(' ', sp);
       }
+      // Espacio vertical extra al inicio/fin de cada bloque añadido (verde).
+      if (brk) doc.moveDown(0.22);
     }
     doc.moveDown(0.5);
   }
