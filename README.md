@@ -1,15 +1,17 @@
-# Películas de la Asamblea — Guion vs. Biblia (PDF)
+# Películas de "Las buenas noticias según Jesús" — Guion vs. Biblia (PDF)
 
-Genera, **por película** de la serie *"Las buenas noticias según Jesús"* (usada en las
-producciones audiovisuales de la **Asamblea Regional 2026 de los testigos de Jehová**),
+Genera, **por episodio/película** de la serie *"Las buenas noticias según Jesús"* (jw.org),
 un **PDF** que muestra el **texto bíblico versículo por versículo** y, superpuesto, lo
 que el **guion de la película** añade, omite o dice en otro orden.
 
-| PDF | Día | Película |
-|-----|-----|----------|
-| `output/episodio_4_para_eso_he_venido_guion.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
-| `output/episodio_5_impactados_con_su_manera_de_ensenar_guion.pdf` | Sábado | Episodio 5 — "Impactados con su manera de enseñar" |
-| `output/episodio_6_eres_tu_el_que_tiene_que_venir_guion.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
+| PDF | Película |
+|-----|----------|
+| `output/episodio_1_la_verdadera_luz_del_mundo_guion.pdf` | Episodio 1 — "La verdadera luz del mundo" |
+| `output/episodio_2_este_es_mi_hijo_guion.pdf` | Episodio 2 — "Este es mi Hijo" |
+| `output/episodio_3_ese_soy_yo_guion.pdf` | Episodio 3 — "Ese soy yo" |
+| `output/episodio_4_para_eso_he_venido_guion.pdf` | Episodio 4 — "Para eso he venido" |
+| `output/episodio_5_impactados_con_su_manera_de_ensenar_guion.pdf` | Episodio 5 — "Impactados con su manera de enseñar" |
+| `output/episodio_6_eres_tu_el_que_tiene_que_venir_guion.pdf` | Episodio 6 — "¿Eres tú el que tiene que venir?" |
 
 El extractor funciona con **cualquier episodio** de la serie (ver más abajo).
 
