@@ -93,6 +93,31 @@ Todos los PDFs siguen el mismo formato de nombre:
 - `npm run verify:scripts:pdf` — comprueba que **todas** esas palabras aparecen, en
   orden, en los PDFs ya generados.
 
+## Comparación del guion contra el texto bíblico
+
+Verifica hasta qué punto el guion de cada película coincide con los versículos
+que la *Guía de videos* referencia en cada escena.
+
+```bash
+npm run compare   # descarga el texto bíblico por escena y genera los reportes
+```
+
+Esto produce un archivo Markdown por película en `output/`
+(`episodio_N_titulo_comparacion.md`) con:
+
+- **Cobertura en orden**: porcentaje de palabras del guion que aparecen
+  textualmente y en el mismo orden que la Escritura referenciada.
+- **Cobertura sin orden**: mismas palabras sin exigir el orden (el film armoniza
+  varios evangelios y reordena frases que sí son textuales).
+- La lista, por escena, de las palabras del guion que **no** provienen de ningún
+  versículo referenciado (diálogo ambiental dramatizado: gritos de la multitud,
+  nombres, interjecciones, conectores).
+
+Internamente `compare_fetch.mjs` descarga el texto de los versículos de cada
+escena (reutilizando `extract.js`) a `bible_scenes.json`, y `compare_bible.py`
+alinea guion y Escritura con `difflib`. Los reportes solo detallan las escenas
+con palabras añadidas por el film.
+
 ## Uso
 
 ```bash

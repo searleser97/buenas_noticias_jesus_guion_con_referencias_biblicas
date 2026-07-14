@@ -124,7 +124,7 @@ async function scrapeGuide(page, guideUrl) {
         tsStartRaw: tsm ? tsm[1] : null,
         tsEndRaw: tsm ? tsm[2] : null,
         refsText,
-        refs: bibleLinks.map(a => ({ label: a.textContent.replace(/\s+/g, ' ').trim(), tv: a.getAttribute('data-targetverses') })),
+        refs: bibleLinks.map(a => ({ label: a.textContent.replace(/\s+/g, ' ').trim(), tv: a.getAttribute('data-targetverses'), href: a.getAttribute('href') })),
       });
     }
     return { episode, scenes };
