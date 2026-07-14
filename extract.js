@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { BOOK_NAMES } from './books.js';
 
 const BASE = 'https://www.jw.org/es/biblioteca/programas/programa-asamblea-regional-2026';
@@ -209,6 +210,6 @@ async function main() {
 export { buildMovies, newContext, scrapeDay, scrapeChapter, expandRef, refHeading, DAYS };
 
 // Ejecutar main() solo si el script se corre directamente
-if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(err => { console.error(err); process.exit(1); });
 }

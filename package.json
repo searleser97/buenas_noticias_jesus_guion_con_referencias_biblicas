@@ -8,7 +8,11 @@
     "pdf": "node make_pdfs.js",
     "start": "node extract.js && node make_pdfs.js",
     "verify:source": "node verify_source.js",
-    "verify:pdf": "python verify_pdf.py"
+    "verify:pdf": "python verify_pdf.py",
+    "extract:scripts": "node extract_scripts.mjs",
+    "pdf:scripts": "node make_script_pdfs.js",
+    "scripts": "node extract_scripts.mjs && node make_script_pdfs.js",
+    "verify:scripts": "node verify_scripts.mjs"
   },
   "keywords": [],
   "author": "",

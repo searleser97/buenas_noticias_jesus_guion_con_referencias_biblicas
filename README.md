@@ -26,10 +26,51 @@ Cada día del programa (Viernes, Sábado, Domingo) tiene una sección
    - Guardar todo en `data.json`.
 
 2. **`make_pdfs.js`** lee `data.json` y genera los 3 PDFs con `pdfkit`:
-   - **Nombre del libro + cita** (p. ej. `Mateo 4:23-25`) en **azul negrita**.
-   - **Números de versículo** en **naranja negrita** para diferenciarlos del texto.
+   - **Nombre del libro + cita** (p. ej. `Mateo 4:23-25`) en **naranja negrita**.
+   - **Números de versículo** en **azul negrita** para diferenciarlos del texto.
    - En rangos multi-capítulo, el número se muestra como `capítulo:versículo`
      al cambiar de capítulo (p. ej. `6:1`).
+   - Texto **justificado**, con los colores oficiales de jw.org.
+
+## Guion literal de las películas
+
+Además de los textos bíblicos, el proyecto genera un **PDF con el guion literal**
+(los diálogos y la narración) de cada película, organizado **por escena** y con los
+pasajes bíblicos que se representan en cada una.
+
+| PDF | Día | Película |
+|-----|-----|----------|
+| `output/1_viernes_episodio_4_guion.pdf` | Viernes | Episodio 4 — "Para eso he venido" |
+| `output/2_sabado_episodio_5_guion.pdf`  | Sábado  | Episodio 5 — "Impactados con su manera de enseñar" |
+| `output/3_domingo_episodio_6_guion.pdf` | Domingo | Episodio 6 — "¿Eres tú el que tiene que venir?" |
+
+El guion se obtiene de los **subtítulos oficiales (`.vtt`)** que jw.org publica para
+cada video (no se transcribe el audio), por lo que el texto es **exacto**:
+
+1. **`extract_scripts.mjs`**:
+   - Descarga los subtítulos VTT de cada episodio desde la API de medios de jw.org
+     (`GETPUBMEDIALINKS`, `pub=gnj`).
+   - Abre la *Guía de videos de "Las buenas noticias según Jesús"* (`pub-gnjvrg`),
+     que lista cada **escena** con su **rango de tiempo** y los **versículos** que
+     representa.
+   - Alinea los subtítulos con cada escena **por marca de tiempo** (no por
+     coincidencia difusa), y guarda todo en `script_data.json`.
+
+2. **`make_script_pdfs.js`** genera un PDF por película:
+   - **Título de la escena** en azul oscuro.
+   - **Pasajes bíblicos** de la escena en naranja negrita, con el rango de tiempo.
+   - **Guion** en párrafos justificados; los turnos de diálogo se marcan con "—".
+
+3. **`verify_scripts.mjs`** comprueba que el guion coincide **palabra por palabra
+   y en orden** con los subtítulos VTT de origen.
+
+```bash
+npm run scripts          # descarga VTT + guía y genera los 3 PDFs del guion
+npm run verify:scripts   # verifica el guion contra los subtítulos oficiales
+```
+
+O por pasos: `npm run extract:scripts` (-> `script_data.json`) y luego
+`npm run pdf:scripts` (-> `output/*_guion.pdf`).
 
 ## Uso
 
